@@ -33,43 +33,18 @@ namespace UI.Controllers
 
         private bool EsUsuarioMantenerSesion()
         {
-            var usuarioActual = HttpContext.Session.GetString("SESSION_USUARIO")?.Trim().ToLower() ?? "";
-            if (string.IsNullOrEmpty(usuarioActual)) return false;
-
-            var usuariosHabilitados = _configuration.GetSection("PuntoVenta_UsuariosMantenerSesion").Get<List<string>>() 
-                ?? new List<string>();
-
-            return usuariosHabilitados.Any(u => u.Trim().Equals(usuarioActual, StringComparison.OrdinalIgnoreCase));
+            return HttpContext.Session.GetString("SESSION_MANTENER_SESION") == "1";
         }
 
         private bool EsUsuarioAutorizadoAnularEnviadoWms()
         {
-            var usuarioActual = HttpContext.Session.GetString("SESSION_USUARIO")?.Trim().ToLower() ?? "";
-            if (string.IsNullOrEmpty(usuarioActual)) return false;
-
-            var usuariosHabilitados = _configuration.GetSection("PuntoVenta_UsuariosAnularEnviadoWMS").Get<List<string>>() 
-                ?? new List<string>();
-
-            return usuariosHabilitados.Any(u => u.Trim().Equals(usuarioActual, StringComparison.OrdinalIgnoreCase));
+            return HttpContext.Session.GetString("SESSION_PUEDE_ANULAR_WMS") == "1";
         }
 
         private string? ObtenerRolCondicionPagoUsuario()
         {
-            var usuarioActual = HttpContext.Session.GetString("SESSION_USUARIO")?.Trim() ?? "";
-            if (string.IsNullOrEmpty(usuarioActual)) return null;
-
-            var dictPermisos = _configuration.GetSection("PuntoVenta_PermisoModificarCondicionPago")
-                .Get<Dictionary<string, string>>() ?? new(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var kv in dictPermisos)
-            {
-                if (kv.Key.Trim().Equals(usuarioActual, StringComparison.OrdinalIgnoreCase))
-                {
-                    return kv.Value.Trim().ToUpperInvariant();
-                }
-            }
-
-            return null;
+            var rol = HttpContext.Session.GetString("SESSION_ROL_CONDICION_PAGO")?.Trim();
+            return string.IsNullOrEmpty(rol) ? null : rol;
         }
 
         #region Helpers Proxy a la API
@@ -79,8 +54,12 @@ namespace UI.Controllers
             {
                 var response = await _apiClient.GetAsync(relativeUrl);
                 var content = await response.Content.ReadAsStringAsync();
-                var obj = JsonConvert.DeserializeObject(content);
-                return StatusCode((int)response.StatusCode, obj);
+                return new ContentResult
+                {
+                    Content = content,
+                    ContentType = "application/json; charset=utf-8",
+                    StatusCode = (int)response.StatusCode
+                };
             }
             catch (Exception ex)
             {
@@ -95,8 +74,12 @@ namespace UI.Controllers
             {
                 var response = await _apiClient.PostAsync(relativeUrl, body);
                 var content = await response.Content.ReadAsStringAsync();
-                var obj = JsonConvert.DeserializeObject(content);
-                return StatusCode((int)response.StatusCode, obj);
+                return new ContentResult
+                {
+                    Content = content,
+                    ContentType = "application/json; charset=utf-8",
+                    StatusCode = (int)response.StatusCode
+                };
             }
             catch (Exception ex)
             {
@@ -131,7 +114,7 @@ namespace UI.Controllers
             }
         }
 
-        private async Task<IActionResult> ProxyFileGetAsync(string relativeUrl)
+        private async Task<IActionResult> ProxyFileGetAsync(string relativeUrl, string? fallbackFileName = null)
         {
             try
             {
@@ -139,6 +122,7 @@ namespace UI.Controllers
                 if (!response.IsSuccessStatusCode)
                 {
                     var err = await response.Content.ReadAsStringAsync();
+                    _logger.LogError("Error en API al generar archivo {Url}: {Error}", relativeUrl, err);
                     try
                     {
                         return StatusCode((int)response.StatusCode, JsonConvert.DeserializeObject(err));
@@ -150,12 +134,35 @@ namespace UI.Controllers
                 }
 
                 var bytes = await response.Content.ReadAsByteArrayAsync();
-                var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/pdf";
-                var fileName = response.Content.Headers.ContentDisposition?.FileNameStar 
-                               ?? response.Content.Headers.ContentDisposition?.FileName 
-                               ?? "reporte.pdf";
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/pdf";
 
-                return File(bytes, contentType, fileName.Trim('"'));
+                string? fileName = response.Content.Headers.ContentDisposition?.FileNameStar 
+                                   ?? response.Content.Headers.ContentDisposition?.FileName;
+
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    if (response.Headers.TryGetValues("Content-Disposition", out var values))
+                    {
+                        var raw = string.Join("; ", values);
+                        var match = System.Text.RegularExpressions.Regex.Match(raw, @"filename\*?=['""]?([^'"";]+)['""]?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        if (match.Success)
+                        {
+                            fileName = match.Groups[1].Value.Trim();
+                        }
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    fileName = !string.IsNullOrWhiteSpace(fallbackFileName) ? fallbackFileName : "reporte.pdf";
+                }
+
+                fileName = fileName.Trim('\"');
+
+                Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
+                Response.Headers["Access-Control-Expose-Headers"] = "Content-Disposition";
+
+                return File(bytes, contentType);
             }
             catch (Exception ex)
             {
@@ -348,24 +355,24 @@ namespace UI.Controllers
             return await ProxyPostAsync("api/PuntoVenta/Buscar_LotesArticulosBatch", request);
         }
 
+        [HttpGet]
         public async Task<IActionResult> Buscar_ArticulosAvanzado(
-            string? textoBusqueda,
+            string? descripcion,
+            string? codigo,
+            string? laboratorio,
+            string? principioActivo,
+            string? titularRs,
             int codigoListaPrecio,
-            string codigoAlmacen,
-            string? rubro = null,
-            string? principioActivo = null,
-            string? titularRs = null,
-            int pagina = 1,
-            int tamanoPagina = 50)
+            string codigoAlmacen)
         {
             var sb = new StringBuilder("api/PuntoVenta/Buscar_ArticulosAvanzado?");
-            sb.Append($"textoBusqueda={Uri.EscapeDataString(textoBusqueda ?? "")}");
+            sb.Append($"descripcion={Uri.EscapeDataString(descripcion ?? "")}");
+            sb.Append($"&codigo={Uri.EscapeDataString(codigo ?? "")}");
+            sb.Append($"&laboratorio={Uri.EscapeDataString(laboratorio ?? "")}");
+            sb.Append($"&principioActivo={Uri.EscapeDataString(principioActivo ?? "")}");
+            sb.Append($"&titularRs={Uri.EscapeDataString(titularRs ?? "")}");
             sb.Append($"&codigoListaPrecio={codigoListaPrecio}");
             sb.Append($"&codigoAlmacen={Uri.EscapeDataString(codigoAlmacen ?? "")}");
-            if (!string.IsNullOrEmpty(rubro)) sb.Append($"&rubro={Uri.EscapeDataString(rubro)}");
-            if (!string.IsNullOrEmpty(principioActivo)) sb.Append($"&principioActivo={Uri.EscapeDataString(principioActivo)}");
-            if (!string.IsNullOrEmpty(titularRs)) sb.Append($"&titularRs={Uri.EscapeDataString(titularRs)}");
-            sb.Append($"&pagina={pagina}&tamanoPagina={tamanoPagina}");
 
             return await ProxyGetAsync(sb.ToString());
         }
@@ -421,7 +428,23 @@ namespace UI.Controllers
         [HttpGet]
         public async Task<IActionResult> Ver_ImagenArticulo(string codigoArticulo)
         {
-            return await ProxyGetAsync($"api/PuntoVenta/Ver_ImagenArticulo?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}");
+            try
+            {
+                var response = await _apiClient.GetAsync($"api/PuntoVenta/Ver_ImagenArticulo?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    return NotFound();
+                }
+
+                var stream = await response.Content.ReadAsStreamAsync();
+                var contentType = response.Content.Headers.ContentType?.ToString() ?? "image/jpeg";
+                return File(stream, contentType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al transmitir imagen del artículo {Codigo}", codigoArticulo);
+                return NotFound();
+            }
         }
 
         [HttpPost]
@@ -451,29 +474,36 @@ namespace UI.Controllers
         [HttpPost, HttpGet]
         public async Task<IActionResult> Imprimir_Venta(VentaReporteParamDTO dto)
         {
+            var docNum = !string.IsNullOrWhiteSpace(dto.NroSap) ? dto.NroSap.Trim() : (dto.DocEntrySap > 0 ? dto.DocEntrySap.ToString() : dto.DocEntry.ToString());
+            string fallback = $"Impreso_{docNum}.pdf";
             string url = $"api/PuntoVenta/Imprimir_Venta?DocEntry={dto.DocEntry}&DocEntrySap={dto.DocEntrySap}&DocEntryOwtr={dto.DocEntryOwtr}&Whs={Uri.EscapeDataString(dto.Whs ?? "")}&NroSap={Uri.EscapeDataString(dto.NroSap ?? "")}";
-            return await ProxyFileGetAsync(url);
+            return await ProxyFileGetAsync(url, fallback);
         }
 
         [HttpPost, HttpGet]
         public async Task<IActionResult> Ticket_Venta(VentaReporteParamDTO dto)
         {
+            var docNum = !string.IsNullOrWhiteSpace(dto.NroSap) ? dto.NroSap.Trim() : (dto.DocEntrySap > 0 ? dto.DocEntrySap.ToString() : dto.DocEntry.ToString());
+            string fallback = $"Ticket_{docNum}.pdf";
             string url = $"api/PuntoVenta/Ticket_Venta?DocEntry={dto.DocEntry}&DocEntrySap={dto.DocEntrySap}&DocEntryOwtr={dto.DocEntryOwtr}&Whs={Uri.EscapeDataString(dto.Whs ?? "")}&NroSap={Uri.EscapeDataString(dto.NroSap ?? "")}";
-            return await ProxyFileGetAsync(url);
+            return await ProxyFileGetAsync(url, fallback);
         }
 
         [HttpPost, HttpGet]
         public async Task<IActionResult> PreliminarSap_Venta(VentaReporteParamDTO dto)
         {
+            var docNum = !string.IsNullOrWhiteSpace(dto.NroSap) ? dto.NroSap.Trim() : (dto.DocEntrySap > 0 ? dto.DocEntrySap.ToString() : dto.DocEntry.ToString());
+            string fallback = $"PreliminarSap_{docNum}.pdf";
             string url = $"api/PuntoVenta/PreliminarSap_Venta?DocEntry={dto.DocEntry}&DocEntrySap={dto.DocEntrySap}&DocEntryOwtr={dto.DocEntryOwtr}&Whs={Uri.EscapeDataString(dto.Whs ?? "")}&NroSap={Uri.EscapeDataString(dto.NroSap ?? "")}";
-            return await ProxyFileGetAsync(url);
+            return await ProxyFileGetAsync(url, fallback);
         }
 
         [HttpPost, HttpGet]
         public async Task<IActionResult> PreliminarPv_Venta(VentaReporteParamDTO dto)
         {
+            string fallback = $"PreliminarPv_{dto.DocEntry}.pdf";
             string url = $"api/PuntoVenta/PreliminarPv_Venta?DocEntry={dto.DocEntry}&DocEntrySap={dto.DocEntrySap}&DocEntryOwtr={dto.DocEntryOwtr}&Whs={Uri.EscapeDataString(dto.Whs ?? "")}&NroSap={Uri.EscapeDataString(dto.NroSap ?? "")}";
-            return await ProxyFileGetAsync(url);
+            return await ProxyFileGetAsync(url, fallback);
         }
 
         // ========== CLIENTES BLOQUEADOS ==========

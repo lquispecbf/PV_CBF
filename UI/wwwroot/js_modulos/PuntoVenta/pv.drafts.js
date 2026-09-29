@@ -4,6 +4,7 @@ window.PV = window.PV || {};
  * PV.DraftManager
  * Administrador de autoguardado local y recuperación de ventas multi-pestaña.
  * Protege contra pérdidas por caídas de red, reinicio de IIS, reciclaje de sesión o cierres de navegador.
+ * Soporta ventas nuevas, borradores de BD y órdenes reabiertas desde SAP con preservación de ID y estado.
  */
 PV.DraftManager = (function () {
 
@@ -110,6 +111,14 @@ PV.DraftManager = (function () {
 
     // Recolectar datos actuales del formulario de venta
     function recolectarEstadoActual() {
+        if (PV.Detalle && PV.Detalle.isReadOnly()) {
+            return null;
+        }
+
+        const docEntryVal = parseInt($("#hdfDocEntry").val()) || 0;
+        const docEntrySapVal = parseInt($("#hdfDocEntrySap").val()) || 0;
+        const docStatusOriginalVal = ($("#hdfDocStatusOriginal").val() || "").trim();
+
         const clienteCodigo = ($("#txtClienteCodigo").val() || "").trim();
         const clienteNombre = ($("#txtClienteNombre").val() || "").trim();
         const $filas = $("#tblVentaDetalle tbody tr");
@@ -163,6 +172,11 @@ PV.DraftManager = (function () {
         const subtotal = parseFloat($("#txtVentaSubTotal").val()) || 0;
         const igv = parseFloat($("#txtVentaIgv").val()) || 0;
 
+        let tipoOrigen = "NUEVA";
+        if (docEntryVal > 0) {
+            tipoOrigen = (docEntrySapVal > 0 || docStatusOriginalVal === "C") ? "REABIERTA_SAP" : "BORRADOR_BD";
+        }
+
         return {
             draftId: _obtenerCurrentDraftId(),
             tabId: _obtenerTabId(),
@@ -170,6 +184,10 @@ PV.DraftManager = (function () {
             fechaCreacion: new Date().toISOString(),
             fechaModificacion: new Date().toISOString(),
             resumen: {
+                docEntry: docEntryVal,
+                docEntrySap: docEntrySapVal,
+                docStatusOriginal: docStatusOriginalVal,
+                tipoOrigen: tipoOrigen,
                 clienteCodigo: clienteCodigo,
                 clienteNombre: clienteNombre,
                 clienteRuc: ($("#txtClienteRuc").val() || "").trim(),
@@ -181,6 +199,9 @@ PV.DraftManager = (function () {
                 comentarios: ($("#txtLogisticaComentarios").val() || "").trim()
             },
             datosVenta: {
+                DOCENTRY: docEntryVal,
+                DOCENTRY_SAP: docEntrySapVal,
+                DOCSTATUS_ORIGINAL: docStatusOriginalVal,
                 OBJTYPE: "17",
                 WHSCODE: $("#ddlVentaAlmacen").val() || "",
                 CARDCODE: clienteCodigo,
@@ -334,23 +355,37 @@ PV.DraftManager = (function () {
         if (typeof callback === "function") callback();
     }
 
-    // Al limpiar formulario (Opción A):
+    // Al limpiar formulario:
     // Asegura el borrador de la venta actual en localStorage y genera un nuevo draftId para la pestaña
     function desvincularBorradorPestana() {
+        if (PV.Detalle && PV.Detalle.isReadOnly()) {
+            limpiarPestanaSinGuardar();
+            return;
+        }
+
         guardarBorradorActual(true);
         _setCurrentDraftId(null); // Generará uno nuevo en el siguiente cambio
         _mostrarEstadoAutoSave("");
         actualizarBadgeBorradores();
     }
 
-    // Solo al emitir venta exitosa: se elimina definitivamente el borrador
+    function limpiarPestanaSinGuardar() {
+        clearTimeout(_debounceTimer);
+        _setCurrentDraftId(null);
+        _mostrarEstadoAutoSave("");
+        actualizarBadgeBorradores();
+    }
+
+    // Solo al emitir venta o borrador exitoso en BD: se elimina definitivamente de los borradores locales
     function eliminarBorradorVentaExitosa() {
-        const draftId = _currentDraftId;
+        clearTimeout(_debounceTimer);
+        const draftId = _currentDraftId || sessionStorage.getItem(SESSION_DRAFT_KEY);
         if (draftId) {
             eliminarBorrador(draftId);
         }
         _setCurrentDraftId(null);
         _mostrarEstadoAutoSave("");
+        actualizarBadgeBorradores();
     }
 
     function restaurarBorrador(draftId) {
@@ -377,9 +412,13 @@ PV.DraftManager = (function () {
 
             $("#modalBorradoresLocales").modal("hide");
 
+            const tipoDesc = (borrador.resumen.docEntry > 0)
+                ? (borrador.resumen.docStatusOriginal === "C" ? `Orden Reabierta N° ${borrador.resumen.docEntry}` : `Borrador BD N° ${borrador.resumen.docEntry}`)
+                : "Borrador Local";
+
             Swal.fire({
                 type: "success",
-                title: "Venta Restaurada",
+                title: `${tipoDesc} Restaurado`,
                 html: `Se restauró la venta de <strong>${borrador.resumen.clienteNombre || 'Cliente sin nombre'}</strong> con <strong>${borrador.resumen.totalArticulos}</strong> artículos.`,
                 timer: 2500,
                 showConfirmButton: false
@@ -442,13 +481,22 @@ PV.DraftManager = (function () {
                 const esEstaPestana = (b.draftId === _currentDraftId);
                 const badgePestana = esEstaPestana ? '<span class="badge badge-primary ml-1">Esta pestaña</span>' : '';
 
+                let badgeTipo = '<span class="badge badge-secondary ml-1">Nuevo</span>';
+                if (b.resumen.docEntry > 0) {
+                    if (b.resumen.docStatusOriginal === 'C' || (b.resumen.docEntrySap && b.resumen.docEntrySap > 0)) {
+                        badgeTipo = `<span class="badge badge-info ml-1" title="Orden Reabierta N° ${b.resumen.docEntry}">Reabierta #${b.resumen.docEntry}</span>`;
+                    } else {
+                        badgeTipo = `<span class="badge badge-warning ml-1" title="Borrador BD N° ${b.resumen.docEntry}">Borrador BD #${b.resumen.docEntry}</span>`;
+                    }
+                }
+
                 const tr = `
                     <tr>
                         <td class="text-center">
                             <input type="checkbox" class="chk-borrador-item" value="${b.draftId}" />
                         </td>
                         <td class="text-center font-weight-bold">${idx + 1}</td>
-                        <td>${fecha} ${badgePestana}</td>
+                        <td>${fecha} ${badgeTipo} ${badgePestana}</td>
                         <td>
                             <strong>${b.resumen.clienteNombre || 'Sin nombre'}</strong>
                             ${b.resumen.clienteRuc ? '<br><small class="text-muted">RUC/DNI: ' + b.resumen.clienteRuc + '</small>' : ''}
@@ -482,8 +530,6 @@ PV.DraftManager = (function () {
         const usuarioActual = _obtenerUsuarioActual();
 
         if (borrador && borrador.usuario && usuarioActual && borrador.usuario.toLowerCase() !== usuarioActual) {
-            // El borrador pertenece a otro usuario que usó esta máquina previamente.
-            // Desvincular de la sesión para evitar mezclas.
             _setCurrentDraftId(null);
             return;
         }
@@ -494,13 +540,22 @@ PV.DraftManager = (function () {
             const total = (parseFloat(borrador.resumen.montoTotal) || 0).toFixed(2);
             const cant = borrador.resumen.totalArticulos;
 
+            let tipoTexto = "una venta sin finalizar";
+            if (borrador.resumen.docEntry > 0) {
+                if (borrador.resumen.docStatusOriginal === "C") {
+                    tipoTexto = `la modificación de la orden reabierta N° ${borrador.resumen.docEntry}`;
+                } else {
+                    tipoTexto = `la edición del borrador de BD N° ${borrador.resumen.docEntry}`;
+                }
+            }
+
             Swal.fire({
                 title: "Venta pendiente detectada",
-                html: `Se encontró una venta sin finalizar en esta pestaña:<br><br>
+                html: `Se encontró ${tipoTexto} en esta pestaña:<br><br>
                        <strong>Cliente:</strong> ${cliente}<br>
                        <strong>Artículos:</strong> ${cant} ítems &nbsp;|&nbsp; <strong>Total:</strong> S/ ${total}<br>
                        <small class="text-muted">Última modificación: ${fecha}</small><br><br>
-                       ¿Deseas restaurar esta venta para continuar?`,
+                       ¿Deseas restaurarla para continuar trabajando?`,
                 type: "question",
                 showCancelButton: true,
                 confirmButtonText: '<i class="fa fa-undo"></i> Restaurar Venta',
@@ -511,7 +566,6 @@ PV.DraftManager = (function () {
                 if (result.value) {
                     restaurarBorrador(currentId);
                 } else if (result.dismiss === Swal.DismissReason.cancel) {
-                    // Desvincular de la pestaña pero mantenerlo en el gestor de borradores
                     _setCurrentDraftId(null);
                     _mostrarEstadoAutoSave("");
                 }
@@ -641,6 +695,7 @@ PV.DraftManager = (function () {
         eliminarBorradoresMultiples: eliminarBorradoresMultiples,
         eliminarTodosBorradores: eliminarTodosBorradores,
         desvincularBorradorPestana: desvincularBorradorPestana,
+        limpiarPestanaSinGuardar: limpiarPestanaSinGuardar,
         eliminarBorradorVentaExitosa: eliminarBorradorVentaExitosa,
         abrirModalBorradores: abrirModalBorradores,
         actualizarBadgeBorradores: actualizarBadgeBorradores

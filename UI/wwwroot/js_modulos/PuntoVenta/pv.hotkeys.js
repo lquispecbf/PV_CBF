@@ -848,6 +848,7 @@ PV.Hotkeys = (function () {
         var procesados = 0;
         var exitosos = 0;
         var $primeraFilaAgregada = null;
+        var codigoPrimerArticulo = (items.length > 0 && items[0].CODIGO) ? items[0].CODIGO.trim() : "";
 
         PV.Utils.mostrarModalProgreso("Agregando artículos...", "Artículo 0 de " + total, total);
 
@@ -856,12 +857,18 @@ PV.Hotkeys = (function () {
                 PV.Utils.actualizarModalProgreso(total, total, "Completado");
                 PV.Utils.cerrarModalProgreso(400, function () {
                     var enfocarCantidadPrimerRegistro = function () {
-                        if ($primeraFilaAgregada && $primeraFilaAgregada.length && typeof PV.Detalle.asegurarFocoEnCantidad === "function") {
-                            PV.Detalle.asegurarFocoEnCantidad($primeraFilaAgregada);
-                            return;
+                        var $filaTarget = null;
+                        if (codigoPrimerArticulo) {
+                            $filaTarget = $("#tblVentaDetalle tbody tr").filter(function () {
+                                return (($(this).attr("data-itemcode") || $(this).find(".txtDetalleCodigo").val() || "").trim().toUpperCase()) === codigoPrimerArticulo.toUpperCase();
+                            }).first();
                         }
-                        if ($primeraFilaAgregada && $primeraFilaAgregada.length) {
-                            var $inputCant = $primeraFilaAgregada.find(".txtDetalleCantidad:not([readonly]):not(:disabled), .txtDetalleCantidadSelect:not(:disabled)").first();
+                        if (!$filaTarget || !$filaTarget.length) {
+                            $filaTarget = $primeraFilaAgregada;
+                        }
+
+                        if ($filaTarget && $filaTarget.length) {
+                            var $inputCant = $filaTarget.find(".txtDetalleCantidad:not([readonly]):not(:disabled), .txtDetalleCantidadSelect:not(:disabled)").first();
                             if ($inputCant.length) {
                                 $inputCant.focus();
                                 if (typeof $inputCant.select === "function" && !$inputCant.is("select")) {
@@ -870,19 +877,12 @@ PV.Hotkeys = (function () {
                                 return;
                             }
                         }
-                        var $ultimaFila = $("#tblVentaDetalle tbody tr").last();
-                        if ($ultimaFila.length) {
-                            var $desc = $ultimaFila.find(".txtDetalleDescripcion");
-                            if ($desc.length > 0) {
-                                $desc.focus().select();
-                            }
-                        }
                     };
 
                     $("#modalBusquedaAvanzada").off("hidden.bs.modal.foco").on("hidden.bs.modal.foco", function () {
                         _procesandoSeleccionAvanzada = false;
                         $(this).off("hidden.bs.modal.foco");
-                        enfocarCantidadPrimerRegistro();
+                        setTimeout(enfocarCantidadPrimerRegistro, 50);
                     });
 
                     $("#modalBusquedaAvanzada").modal("hide");
@@ -892,11 +892,17 @@ PV.Hotkeys = (function () {
                         type: "success",
                         title: "Completado",
                         html: mensaje,
-                        timer: 1200,
+                        timer: 900,
                         showConfirmButton: false
                     }).then(function () {
+                        _procesandoSeleccionAvanzada = false;
                         enfocarCantidadPrimerRegistro();
+                        setTimeout(enfocarCantidadPrimerRegistro, 80);
+                        setTimeout(enfocarCantidadPrimerRegistro, 200);
                     });
+
+                    setTimeout(enfocarCantidadPrimerRegistro, 950);
+                    setTimeout(enfocarCantidadPrimerRegistro, 1150);
                 });
                 return;
             }

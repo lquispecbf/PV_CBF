@@ -52,45 +52,53 @@ PV.Catalogos = (function () {
             }
         });
     }
-    function cargarVendedores() {
+    function cargarVendedores(callback) {
         $.ajax({
             url: "/PuntoVenta/Buscar_Vendedores",
             type: "GET",
             dataType: "json",
             success: function (data) {
-                //let html = '<option value=""><< Seleccionar >></option>';
+                let list = Array.isArray(data) ? data : (data && data.data ? data.data : []);
                 let html = '';
 
-                data.forEach(function (item) {
-                    html += `<option value="${item.CODIGO}">${item.NOMBRE}</option>`;
+                list.forEach(function (item) {
+                    const codigo = item.CODIGO !== undefined ? item.CODIGO : (item.codigo !== undefined ? item.codigo : "");
+                    const nombre = item.NOMBRE !== undefined ? item.NOMBRE : (item.nombre !== undefined ? item.nombre : "");
+                    html += `<option value="${codigo}">${nombre}</option>`;
                 });
 
                 $("#ddlVentaVendedor").html(html);
                 $("#ddlBusquedaVendedor").html(html);
+                if (typeof callback === "function") callback(list);
             },
             error: function (xhr) {
                 console.log("Error al cargar vendedores", xhr.responseText);
+                if (typeof callback === "function") callback([]);
             }
         });
     }
-    function cargarAlmacenes() {
+    function cargarAlmacenes(callback) {
         $.ajax({
             url: "/PuntoVenta/Buscar_Almacenes",
             type: "GET",
             data: { nombreBusqueda: "" },
             dataType: "json",
             success: function (data) {
-                //let html = '<option value=""><< Seleccionar >></option>';
+                let list = Array.isArray(data) ? data : (data && data.data ? data.data : []);
                 let html = '';
 
-                data.forEach(function (item) {
-                    html += `<option value="${item.CODIGO}">${item.NOMBRE}</option>`;
+                list.forEach(function (item) {
+                    const codigo = item.CODIGO !== undefined ? item.CODIGO : (item.codigo !== undefined ? item.codigo : "");
+                    const nombre = item.NOMBRE !== undefined ? item.NOMBRE : (item.nombre !== undefined ? item.nombre : "");
+                    html += `<option value="${codigo}">${nombre}</option>`;
                 });
 
                 $("#ddlVentaAlmacen").html(html);
+                if (typeof callback === "function") callback(list);
             },
             error: function (xhr) {
                 console.log("Error al cargar almacenes", xhr.responseText);
+                if (typeof callback === "function") callback([]);
             }
         });
     }

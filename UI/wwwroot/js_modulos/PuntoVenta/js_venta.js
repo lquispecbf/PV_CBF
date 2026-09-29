@@ -1489,7 +1489,8 @@ function cargarVentaEditable(resp, docStatus, estadoEnvio) {
 
     if (resp && resp.DOCENTRY && resp.DOCENTRY > 0) {
         $("#hdfDocEntry").val(resp.DOCENTRY);
-        $("#hdfDocStatusOriginal").val(docStatus || resp.DOCSTATUS || "");
+        var statusOrig = (docStatus && docStatus !== "BORRADOR_LOCAL") ? docStatus : (resp.DOCSTATUS_ORIGINAL || resp.DOCSTATUS || "");
+        $("#hdfDocStatusOriginal").val(statusOrig);
     } else {
         $("#hdfDocEntry").val("");
         $("#hdfDocStatusOriginal").val("");

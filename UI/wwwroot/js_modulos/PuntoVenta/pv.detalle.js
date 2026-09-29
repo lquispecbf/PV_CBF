@@ -686,20 +686,20 @@ PV.Detalle = (function () {
             }
             const descripcion = ($fila.find(".txtDetalleDescripcion").val() || "").trim() || codigo;
 
-            // Abrir modal con spinner inicial
+            // Abrir modal con altura uniforme y animación suave (evita saltos bruscos)
             Swal.fire({
                 title: descripcion,
                 html:
                     '<div style="color:#6c757d;font-size:0.9rem;margin-bottom:12px;">' +
                         'Código: <strong>' + PV.esc(codigo) + '</strong>' +
                     '</div>' +
-                    '<div id="cntModalImagenArticulo" style="min-height:220px;display:flex;align-items:center;justify-content:center;background:#f8f9fa;border-radius:6px;border:1px dashed #dee2e6;padding:15px;margin-bottom:5px;">' +
-                        '<div class="text-center py-3">' +
+                    '<div id="cntModalImagenArticulo" style="height:340px;display:flex;align-items:center;justify-content:center;background:#f8f9fa;border-radius:8px;border:1px dashed #dee2e6;padding:10px;margin-bottom:5px;position:relative;overflow:hidden;transition:background 0.3s ease, border-color 0.3s ease;">' +
+                        '<div id="cntModalImagenSpinner" class="text-center py-3">' +
                             '<i class="fa fa-spinner fa-spin fa-2x" style="color:#1ab394;"></i>' +
-                            '<div class="text-muted mt-2" style="font-size:0.85rem;">Buscando imagen en catálogo...</div>' +
+                            '<div class="text-muted mt-2" style="font-size:0.85rem;">Buscando imagen...</div>' +
                         '</div>' +
                     '</div>',
-                width: 500,
+                width: 520,
                 showConfirmButton: true,
                 confirmButtonColor: "#1ab394",
                 confirmButtonText: "Cerrar"
@@ -725,25 +725,67 @@ PV.Detalle = (function () {
                     var sep = imgSrc.indexOf("?") >= 0 ? "&" : "?";
                     var imgUrl = imgSrc + sep + "t=" + Date.now();
 
-                    $cnt.css({
-                        "background": "transparent",
-                        "border": "none",
-                        "min-height": "auto",
-                        "padding": "0"
-                    }).html(
-                        '<div style="text-align:center;max-height:420px;overflow:hidden;">' +
-                            '<img id="imgArticuloModal" src="' + imgUrl + '"' +
-                            ' alt="Imagen del producto"' +
-                            ' style="max-width:100%;max-height:400px;object-fit:contain;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.12);display:inline-block;" />' +
-                        '</div>'
-                    );
+                    // Precargar imagen en memoria para evitar parpadeo o cambios de dimensión
+                    var preloadImg = new Image();
+                    preloadImg.onload = function () {
+                        var $container = $("#cntModalImagenArticulo");
+                        if (!$container.length) return;
 
-                    $("#imgArticuloModal").on("error", function () {
+                        $container.css({
+                            "background": "#ffffff",
+                            "border": "1px solid #e9ecef"
+                        }).html(
+                            '<button type="button" id="btnMaximizarImagenModal" class="btn btn-xs btn-outline-primary shadow-sm" style="position:absolute;top:8px;right:8px;z-index:10;background:rgba(255,255,255,0.92);border-radius:4px;padding:3px 9px;font-size:11px;font-weight:600;" title="Ampliar imagen / Pantalla grande">' +
+                                '<i class="fa fa-search-plus mr-1"></i> Ampliar' +
+                            '</button>' +
+                            '<div id="cntImgArticuloWrapper" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;cursor:zoom-in;" title="Clic para ver en tamaño grande">' +
+                                '<img id="imgArticuloModal" src="' + imgUrl + '"' +
+                                ' alt="Imagen del producto"' +
+                                ' style="max-width:100%;max-height:320px;object-fit:contain;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.08);opacity:0;transition:opacity 0.35s ease-in-out;" />' +
+                            '</div>'
+                        );
+
+                        setTimeout(function () {
+                            $("#imgArticuloModal").css("opacity", "1");
+                        }, 50);
+
+                        // Evento para maximizar / zoom
+                        $(document).off("click.zoomImg", "#btnMaximizarImagenModal, #cntImgArticuloWrapper").on("click.zoomImg", "#btnMaximizarImagenModal, #cntImgArticuloWrapper", function (e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            Swal.fire({
+                                title: descripcion,
+                                html:
+                                    '<div style="color:#6c757d;font-size:0.95rem;margin-bottom:12px;">' +
+                                        'Código: <strong>' + PV.esc(codigo) + '</strong>' +
+                                    '</div>' +
+                                    '<div style="display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:8px;padding:15px;border:1px solid #dee2e6;max-height:75vh;overflow:auto;">' +
+                                        '<img src="' + imgUrl + '" alt="' + PV.esc(descripcion) + '" style="max-width:100%;max-height:65vh;object-fit:contain;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,0.12);" />' +
+                                    '</div>',
+                                width: 920,
+                                showConfirmButton: true,
+                                confirmButtonColor: "#1ab394",
+                                confirmButtonText: '<i class="fa fa-times mr-1"></i> Cerrar',
+                                showCancelButton: true,
+                                cancelButtonColor: "#3085d6",
+                                cancelButtonText: '<i class="fa fa-external-link-alt mr-1"></i> Pestaña nueva'
+                            }).then(function (result) {
+                                if (result.dismiss === Swal.DismissReason.cancel) {
+                                    window.open(imgUrl, "_blank");
+                                }
+                            });
+                        });
+                    };
+
+                    preloadImg.onerror = function () {
                         var $container = $("#cntModalImagenArticulo");
                         if ($container.length) {
                             _renderSinImagenModal($container);
                         }
-                    });
+                    };
+
+                    preloadImg.src = imgUrl;
                 },
                 error: function (xhr, status, error) {
                     console.error("Error al consultar imagen:", xhr.status, xhr.responseText, error);
@@ -758,9 +800,7 @@ PV.Detalle = (function () {
         function _renderSinImagenModal($cnt) {
             $cnt.css({
                 "background": "#fbfbfb",
-                "border": "1px dashed #ced4da",
-                "min-height": "160px",
-                "padding": "20px 15px"
+                "border": "1px dashed #ced4da"
             }).html(
                 '<div class="text-center py-2">' +
                     '<i class="fa fa-image fa-3x text-muted mb-2 d-block" style="opacity:0.45;"></i>' +
@@ -772,9 +812,7 @@ PV.Detalle = (function () {
         function _renderErrorCargaModal($cnt) {
             $cnt.css({
                 "background": "#fff5f5",
-                "border": "1px dashed #f5c6cb",
-                "min-height": "160px",
-                "padding": "20px 15px"
+                "border": "1px dashed #f5c6cb"
             }).html(
                 '<div class="text-center py-2">' +
                     '<i class="fa fa-exclamation-circle fa-3x text-danger mb-2 d-block" style="opacity:0.7;"></i>' +

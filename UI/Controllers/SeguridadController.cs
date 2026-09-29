@@ -73,10 +73,24 @@ namespace UI.Controllers
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    string mensajeError = $"Error de comunicación con el servicio de autenticación (HTTP {(int)response.StatusCode}).";
+                    try
+                    {
+                        var errObj = JObject.Parse(content);
+                        var msg = errObj["Mensaje"]?.Value<string>() ?? errObj["mensaje"]?.Value<string>() ?? errObj["error"]?.Value<string>();
+                        if (!string.IsNullOrWhiteSpace(msg))
+                        {
+                            mensajeError = msg;
+                        }
+                    }
+                    catch { }
+
+                    _logger.LogWarning("Respuesta no exitosa en Validar_Login: {StatusCode} - {Content}", response.StatusCode, content);
+
                     return Json(new
                     {
                         Estado = false,
-                        Mensaje = "Error de comunicación con el servicio de autenticación.",
+                        Mensaje = mensajeError,
                         Usuario = new List<BE_Usuario>()
                     });
                 }
@@ -111,8 +125,9 @@ namespace UI.Controllers
 
                 var usuario = listaUsuarios[0];
 
-                var usuariosMantener = _configuration.GetSection("PuntoVenta_UsuariosMantenerSesion").Get<List<string>>() ?? new List<string>();
-                bool mantenerSesion = usuariosMantener.Any(u => u.Trim().Equals(usuario.USUARIO?.Trim(), StringComparison.OrdinalIgnoreCase));
+                bool mantenerSesion = jsonResult["MantenerSesion"]?.Value<bool>() ?? jsonResult["mantenerSesion"]?.Value<bool>() ?? false;
+                bool puedeAnularWms = jsonResult["PuedeAnularEnviadoWms"]?.Value<bool>() ?? jsonResult["puedeAnularEnviadoWms"]?.Value<bool>() ?? false;
+                string rolCondicionPago = jsonResult["RolCondicionPago"]?.Value<string>() ?? jsonResult["rolCondicionPago"]?.Value<string>() ?? "";
 
                 // Guardar en sesión
                 HttpContext.Session.Clear();
@@ -129,6 +144,8 @@ namespace UI.Controllers
                 HttpContext.Session.SetString("SESSION_DIAS_CLAVE", usuario.DIAS_RESTANTES_CLAVE?.ToString() ?? "999");
                 HttpContext.Session.SetString("SESSION_PROXIMO_VENCER", usuario.PROXIMO_VENCER ?? "0");
                 HttpContext.Session.SetString("SESSION_MANTENER_SESION", mantenerSesion ? "1" : "0");
+                HttpContext.Session.SetString("SESSION_PUEDE_ANULAR_WMS", puedeAnularWms ? "1" : "0");
+                HttpContext.Session.SetString("SESSION_ROL_CONDICION_PAGO", rolCondicionPago);
                 HttpContext.Session.SetInt32("SESSION_CODIGO_VENDEDOR_SAP", usuario.CODIGO_VENDEDOR_SAP ?? 0);
 
                 var permisos = jsonResult["Permisos"] ?? jsonResult["permisos"];
@@ -147,10 +164,11 @@ namespace UI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en Validar_Login MVC");
+                var baseUrl = _configuration.GetValue<string>("ApiConfig:BaseUrl");
                 return Json(new
                 {
                     Estado = false,
-                    Mensaje = "Ocurrió un error al procesar el inicio de sesión.",
+                    Mensaje = $"No se pudo conectar con la Web API en '{baseUrl}'. Asegúrese de que el proyecto API esté iniciado en el puerto 5050.",
                     Usuario = new List<BE_Usuario>()
                 });
             }
@@ -182,7 +200,7 @@ namespace UI.Controllers
         }
 
         [HttpPost]
-        public async Task<JsonResult> Cambiar_Clave_Segura([FromBody] BE_CambioClave oUsuario)
+        public async Task<IActionResult> Cambiar_Clave_Segura([FromBody] BE_CambioClave oUsuario)
         {
             try
             {
@@ -194,11 +212,16 @@ namespace UI.Controllers
                     HttpContext.Session.Clear();
                 }
 
-                return Json(JsonConvert.DeserializeObject(content));
+                return new ContentResult
+                {
+                    Content = content,
+                    ContentType = "application/json; charset=utf-8",
+                    StatusCode = (int)response.StatusCode
+                };
             }
             catch (Exception ex)
             {
-                return Json(new { resultado = 0, mensaje = $"Error al comunicar con la API: {ex.Message}" });
+                return StatusCode(500, new { resultado = 0, mensaje = $"Error al comunicar con la API: {ex.Message}" });
             }
         }
 
@@ -231,6 +254,39 @@ namespace UI.Controllers
                 SESSION_MANTENER_SESION = HttpContext.Session.GetString("SESSION_MANTENER_SESION") ?? "0",
                 SESSION_CODIGO_VENDEDOR_SAP = HttpContext.Session.GetInt32("SESSION_CODIGO_VENDEDOR_SAP") ?? 0
             });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Mostrar_Menu([FromBody] BE_Usuario? obj)
+        {
+            try
+            {
+                obj ??= new BE_Usuario();
+                var idUsuarioSession = HttpContext.Session.GetString("SESSION_ID_USUARIO");
+                if (int.TryParse(idUsuarioSession, out int idUsuario))
+                {
+                    obj.ID = idUsuario;
+                }
+
+                var response = await _apiClient.PostAsync("api/Auth/mostrar-menu", obj);
+                var content = await response.Content.ReadAsStringAsync();
+                return new ContentResult
+                {
+                    Content = content,
+                    ContentType = "application/json; charset=utf-8",
+                    StatusCode = (int)response.StatusCode
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en Mostrar_Menu MVC");
+                return new ContentResult
+                {
+                    Content = "[]",
+                    ContentType = "application/json; charset=utf-8",
+                    StatusCode = 200
+                };
+            }
         }
     }
 }

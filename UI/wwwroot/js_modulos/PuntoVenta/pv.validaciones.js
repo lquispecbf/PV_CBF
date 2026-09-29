@@ -34,14 +34,14 @@ PV.Validaciones = (function () {
             $(this).blur();
             Swal.fire({
                 title: "¿Limpiar formulario?",
-                text: "Se perderán todos los datos ingresados.",
+                text: "Se iniciará una nueva venta en blanco (el borrador actual se conserva en la lista de borradores).",
                 type: "question",
                 showCancelButton: true,
                 confirmButtonText: "Sí, limpiar",
                 cancelButtonText: "Cancelar"
             }).then(function (result) {
                 if (!result.value) return;
-                limpiarFormulario();
+                limpiarFormulario(false);
                 enfocarCliente();
                 $("#btnBusquedaBuscar").trigger("click");
             });
@@ -534,7 +534,7 @@ PV.Validaciones = (function () {
                                 confirmButtonText: "Aceptar"
                             }).then(function () {
                                 PV.confirmarGuardado();
-                                limpiarFormulario();
+                                limpiarFormulario(true);
                                 activarTabBusqueda();
                             });
                         } else {
@@ -666,7 +666,7 @@ PV.Validaciones = (function () {
                                 confirmButtonText: "Aceptar"
                             }).then(function () {
                                 PV.confirmarGuardado();
-                                limpiarFormulario();
+                                limpiarFormulario(true);
                                 activarTabBusqueda();
                             });
                         } else {
@@ -699,12 +699,28 @@ PV.Validaciones = (function () {
         });
     }
 
-    function limpiarFormulario() {
+    function limpiarFormulario(esGuardadoExitoso = false) {
+        if (esGuardadoExitoso) {
+            if (PV.DraftManager && typeof PV.DraftManager.limpiarPestanaSinGuardar === "function") {
+                PV.DraftManager.limpiarPestanaSinGuardar();
+            }
+        } else {
+            var eraReadOnly = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
+            var teniaDocEntry = !!(($("#hdfDocEntry").val() || "").trim() || ($("#hdfDocEntrySap").val() || "").trim());
+
+            if (eraReadOnly || teniaDocEntry) {
+                if (PV.DraftManager && typeof PV.DraftManager.limpiarPestanaSinGuardar === "function") {
+                    PV.DraftManager.limpiarPestanaSinGuardar();
+                }
+            } else {
+                if (PV.DraftManager && typeof PV.DraftManager.desvincularBorradorPestana === "function") {
+                    PV.DraftManager.desvincularBorradorPestana();
+                }
+            }
+        }
+
         PV.Detalle.setFormReadOnly(false);
         PV.confirmarGuardado();
-        if (PV.DraftManager && typeof PV.DraftManager.desvincularBorradorPestana === "function") {
-            PV.DraftManager.desvincularBorradorPestana();
-        }
         PV.Cliente.limpiarSeleccionCliente();
 
         $("#tab-logistica input:not(#txtLogisticaFechaEntrega), #tab-logistica textarea").val("");
