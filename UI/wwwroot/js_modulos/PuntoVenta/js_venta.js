@@ -41,8 +41,19 @@ $(document).ready(function () {
     $("#btnBusquedaExportar").on("click", function (e) {
         e.preventDefault();
         if (!PV.Utils.puedeInteractuar()) return;
+
+        if (rangoFechasInvalido()) {
+            Swal.fire({
+                type: "warning",
+                title: "Rango de fechas inválido",
+                text: "La fecha de inicio no puede ser mayor que la fecha de fin."
+            });
+            return;
+        }
+
         PV.Utils.ejecutarAccion(function (reHabilitar) {
             $("#btnBusquedaExportar").prop("disabled", true);
+            $("body").addClass("loading");
             const filtro = {
                 CLIENTE: $("#txtBusquedaClienteDocumento").val() || "",
                 VENDEDOR: $("#ddlBusquedaVendedor").val() || "",
@@ -73,6 +84,7 @@ $(document).ready(function () {
                     }
                 },
                 complete: function () {
+                    $("body").removeClass("loading");
                     $("#btnBusquedaExportar").prop("disabled", false);
                     reHabilitar();
                 }

@@ -152,6 +152,7 @@ PV.Utils = {
 PV.Core = (function () {
 
     function inicializar() {
+        $(".modal").appendTo("body");
         controlarSesionExpirada();
         inicializarFechas();
         registrarFocusTabs();

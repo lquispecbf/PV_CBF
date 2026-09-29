@@ -1,5 +1,13 @@
 $(document).ready(function () {
 
+    // Mover modales a la raíz del body para evitar conflicto WAI-ARIA (aria-hidden en #wrapper)
+    $('.modal').appendTo('body');
+    $(document).on('show.bs.modal', '.modal', function () {
+        if (!$(this).parent().is('body')) {
+            $(this).appendTo('body');
+        }
+    });
+
     const SESSION_EVENT_KEY = "CBF_PV_SESSION_EVENT";
     const SESSION_TAB_ID_KEY = "CBF_PV_SESSION_TAB_ID";
     const SESSION_ACTIVE_USER_KEY = "CBF_PV_SESSION_ACTIVE_USER";
