@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BE/BE.csproj" />
+  <Project Path="UI/UI.csproj" />
+</Solution>

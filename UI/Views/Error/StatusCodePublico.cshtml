@@ -1,0 +1,36 @@
+@{
+    Layout = null;
+    var titulo = ViewBag.Title ?? "Ocurrió un problema";
+    var mensaje = ViewBag.Message ?? "No pudimos procesar tu solicitud.";
+    var codigo = ViewBag.Code ?? 0;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>@titulo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <link href="~/Css/bootstrap.min.css" rel="stylesheet" />
+    <link href="~/css/style.css" rel="stylesheet" />
+</head>
+<body class="gray-bg">
+
+    <div class="middle-box text-center animated fadeInDown">
+        <h1>@codigo</h1>
+        <h3 class="font-bold">@titulo</h3>
+
+        <div class="error-desc">
+            <p>@mensaje</p>
+
+            <br />
+
+            <a href="@Url.Action("Login", "Seguridad")" class="btn btn-primary">
+                Ir al login
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>

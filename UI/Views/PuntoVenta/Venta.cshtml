@@ -1,0 +1,2097 @@
+@{
+    ViewData["Title"] = "Punto de Venta";
+    Layout = "~/Views/Shared/MasterPage.cshtml";
+}
+<div class="row wrapper border-bottom white-bg page-heading">
+    <div class="col-lg-10">
+        <h2 class="titulo-pagina">
+            @ViewData["Title"]
+        </h2>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="../Seguridad/Principal">Principal</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a>Punto de Venta</a>
+            </li>
+            <li class="breadcrumb-item active">
+                <strong>Venta</strong>
+            </li>
+        </ol>
+    </div>
+</div>
+
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="tabs-container">
+            <ul class="nav nav-tabs tabs-pv">
+                <li class="nav-item">
+                    <a class="nav-link pl-2 pr-2 active" data-pv-tab="main" href="#tab-1"> <i class="fas fa-search mr-1"></i> BÚSQUEDA</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link pl-2 pr-2" data-pv-tab="main" href="#tab-2"><i class="fas fa-shopping-cart mr-1"></i>VENTA</a>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <!-- TAB BUSQUEDA -->
+                <div id="tab-1" class="tab-pane active show">
+                    <div class="panel-body">
+                        <div class="col-lg-12">
+                            <div class="row">
+                                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                                    <div class="row mb-2 filtros-busqueda align-items-end">
+
+                                        <div class="col-12 col-sm-6 col-md-6 col-lg-3 col-xl-2 mb-2">
+                                            <label> Búsqueda:</label>
+                                            <div class="input-group input-group-sm input-clear">
+                                                <input type="text"
+                                                       class="form-control"
+                                                       id="txtBusquedaClienteDocumento"
+                                                       placeholder="Cliente o DNI/RUC..."
+                                                       autocomplete="off" />
+                                                <div class="input-group-append">
+                                                    <button type="button"
+                                                            class="btn btn-outline-secondary btn-clear-input"
+                                                            title="Limpiar"
+                                                            tabindex="-1"
+                                                            aria-label="Limpiar búsqueda">
+                                                        <i class="fa fa-times" aria-hidden="true"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-md-6 col-lg-3 col-xl-2 mb-2">
+                                            <label>Vendedor:</label>
+                                            <select class="form-control form-control-sm" id="ddlBusquedaVendedor">
+                                                <option value=""><< Seleccionar >></option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2 mb-2">
+                                            <label>Fecha Inicio:</label>
+                                            <input type="text"
+                                                   class="form-control form-control-sm input-fecha"
+                                                   id="txtBusquedaFechaInicio"
+                                                   autocomplete="off" />
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2 mb-2">
+                                            <label>Fecha Fin:</label>
+                                            <input type="text"
+                                                   class="form-control form-control-sm input-fecha"
+                                                   id="txtBusquedaFechaFin"
+                                                   autocomplete="off" />
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-md-6 col-lg-1 col-xl-2 mb-2">
+                                            <button id="btnBusquedaBuscar"
+                                                    type="button"
+                                                    class="btn btn-sm w-100 btn-custom btn-buscar-tab"
+                                                    style="height: calc(1.8125rem + 2px);"
+                                                    title="Buscar">
+                                                <i class="fa fa-magnifying-glass"></i><span class="d-inline d-lg-none d-xl-inline"> Buscar</span>
+                                            </button>
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-md-6 col-lg-1 col-xl-2 mb-2">
+                                            <button id="btnBusquedaExportar"
+                                                    type="button"
+                                                    class="btn btn-sm w-100"
+                                                    style="background-color:#f3af5e;color:#fff;border-color:#f3af5e;height: calc(1.8125rem + 2px);"
+                                                    title="Exportar Excel (F6)">
+                                                <i class="fa fa-file-excel"></i><span class="d-inline d-lg-none d-xl-inline"> Exportar (F6)</span>
+                                            </button>
+                                        </div>
+
+                                    </div>
+                                </div>
+                                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12 mb-2">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                        <span class="text-muted small" id="lblBusquedaAccionesHint">Seleccione un registro para habilitar las acciones</span>
+                                        <div class="d-flex flex-wrap">
+                                            <button id="btnBusquedaImprimir"
+                                                    type="button"
+                                                    class="btn btn-sm btn-custom mr-2"
+                                                    style="background-color:#6c757d;color:#fff;border-color:#6c757d;"
+                                                    disabled
+                                                    title="Imprimir el pedido seleccionado (F7)">
+                                                <i class="fa fa-print"></i> Imprimir <small>(F7)</small>
+                                            </button>
+                                            <button id="btnBusquedaEnviarWms"
+                                                    type="button"
+                                                    class="btn btn-sm btn-custom mr-2"
+                                                    style="background-color:#1ab394;color:#fff;border-color:#1ab394;"
+                                                    disabled
+                                                    title="Enviar el documento a WMS (F8)">
+                                                <i class="fa fa-paper-plane"></i> Enviar WMS <small>(F8)</small>
+                                            </button>
+                                            <div class="btn-group mr-2">
+                                                <button id="btnBusquedaAcciones"
+                                                        type="button"
+                                                        class="btn btn-sm btn-custom dropdown-toggle"
+                                                        data-toggle="dropdown"
+                                                        aria-haspopup="true"
+                                                        aria-expanded="false"
+                                                        disabled
+                                                        title="Acciones del pedido seleccionado (F9)">
+                                                    <i class="fa fa-cog"></i> Acciones <small>(F9)</small>
+                                                </button>
+                                                <div class="dropdown-menu dropdown-menu-right">
+                                                    <a class="dropdown-item" href="#" data-accion="preliminar-sap" title="Preliminar SAP (F10)">Preliminar SAP <small class="text-muted float-right">(F10)</small></a>
+                                                    <a class="dropdown-item" href="#" data-accion="preliminar-pv" title="Preliminar PV (F11)">Preliminar PV <small class="text-muted float-right">(F11)</small></a>
+                                                    <a class="dropdown-item" href="#" data-accion="ticket" title="Ticket (F12)">Ticket <small class="text-muted float-right">(F12)</small></a>
+                                                    <div class="dropdown-divider"></div>
+                                                    <a class="dropdown-item" href="#" data-accion="enviar-sap">Enviar SAP</a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                                    <div class="row" style="overflow-x: auto;">
+                                        <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                                            <div class="table-responsive">
+                                                <table id="tblBusquedaVentas" class="table table-hover table-striped compact" style="display:none">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>VER</th>
+                                                            <th>ANULAR</th>
+                                                            <th>REABRIR</th>
+                                                            <th>COND. PAGO</th>
+                                                            <th class="th-col-cliente">
+                                                                CLIENTE
+                                                                <span class="col-resizer" title="Arrastrar para ajustar ancho (Doble clic para restablecer)"></span>
+                                                            </th>
+                                                            <th>RUC/DNI</th>
+                                                            <th>FECHA</th>
+                                                            <th class="th-col-vendedor">
+                                                                VENDEDOR
+                                                                <span class="col-resizer" title="Arrastrar para ajustar ancho (Doble clic para restablecer)"></span>
+                                                            </th>
+                                                            <th>ALMACEN</th>
+                                                            <th class="th-col-comentario">
+                                                                COMENTARIO
+                                                                <span class="col-resizer" title="Arrastrar para ajustar ancho (Doble clic para restablecer)"></span>
+                                                            </th>
+                                                            <th>LUGAR ENTREGA</th>
+                                                            <th>TOTAL</th>
+                                                            <th>NROSAP</th>
+                                                            <th>ESTADO ENVIO</th>
+                                                            <th>USUARIO MODIFICA</th>
+                                                            <th>FECHA Y HORA</th>
+                                                            <th>PC</th>
+                                                            <th>DOCENTRY</th>
+                                                            <th>DOCSTATUS</th>
+                                                            <th>DOCENTRY_SAP</th>
+                                                            <th>DOCENTRY_OWTR</th>
+                                                            <th>LOG</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody></tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB VENTA -->
+                <div id="tab-2" class="tab-pane">
+                    <div class="panel-body">
+
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-0">
+                            <div class="d-flex align-items-center flex-wrap">
+                                <ul class="nav nav-pills mb-0 nav-pills-pv">
+                                    <li class="nav-item">
+                                        <a class="nav-link active" data-pv-tab="sub" href="#tab-cliente" title="Ctrl+1">    <i class="fas fa-user mr-1"></i>Cliente <small style="color:inherit;">(Ctrl+1)</small></a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" data-pv-tab="sub" href="#tab-logistica" title="Ctrl+2">   <i class="fas fa-truck mr-1"></i>Logística <small style="color:inherit;">(Ctrl+2)</small></a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" data-pv-tab="sub" href="#tab-financiero" title="Ctrl+3"> <i class="fas fa-dollar-sign mr-1"></i>Financiero <small style="color:inherit;">(Ctrl+3)</small></a>
+                                    </li>
+                                </ul>
+                                <small id="lblAutoSaveStatus" class="ml-3 font-italic" style="font-size:0.8rem;"></small>
+                            </div>
+                            <div class="row mt-1">
+                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                    <button id="btnBorradoresLocales" type="button" class="btn btn-sm btn-custom btn-block" style="background-color:#17a2b8;color:#fff;border-color:#17a2b8;" title="Ver ventas guardadas localmente en este navegador">
+                                        <i class="fa fa-folder-open"></i> Borradores <span id="badgeBorradoresCount" class="badge badge-light" style="display:none;margin-left:2px;">0</span>
+                                    </button>
+                                </div>
+                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                    <button id="btnVentaLimpiar" class="btn btn-sm btn-custom btn-block" style="background-color:#f3af5e;color:#fff;border-color:#f3af5e;" title="Limpiar (F9)">
+                                        <i class="fa fa-eraser"></i> Limpiar <small style="color:inherit;">(F9)</small>
+                                    </button>
+                                </div>
+                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                    <button id="btnVentaGuardar" class="btn btn-success btn-sm btn-custom btn-block" title="Guardar Venta (F10)">
+                                        <i class="fa fa-save"></i> Guardar Venta <small style="color:inherit;">(F10)</small>
+                                    </button>
+                                </div>
+                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                    <button id="btnVentaBorrador" class="btn btn-sm btn-custom btn-block" style="background-color:#6c757d;color:#fff;border-color:#6c757d;" title="Guardar Borrador (F11)">
+                                        <i class="fa fa-save"></i> Guardar Borrador <small style="color:inherit;">(F11)</small>
+                                    </button>
+                                </div>
+                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                    <button id="btnVentaImportarArticulo" class="btn btn-sm btn-custom btn-block" style="background-color:#5dade2;color:#fff;border-color:#5dade2;" title="Importar Articulo (F12)">
+                                        <i class="fa fa-file-excel"></i> Importar Articulo <small style="color:inherit;">(F12)</small>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <input type="hidden" id="hdfUsuarioSapCode" value="@ViewBag.UsuarioSapCode" />
+                        <input type="hidden" id="hdfDocEntry" value="" />
+                        <input type="hidden" id="hdfDocEntrySap" value="" />
+                        <input type="hidden" id="hdfDocStatusOriginal" value="" />
+
+                        <div class="tab-content mb-0">
+
+                            <div id="tab-cliente" class="tab-pane active show">
+                                <div class="card mb-2 p-2">
+                                    <div class="row compact-form">
+
+                                        <div class="col-md-4 col-lg-3 col-xl-2">
+                                            <label>Código</label>
+                                            <input type="text" id="txtClienteCodigo" class="form-control form-control-sm" readonly />
+                                        </div>
+
+                                        <div class="col-md-8 col-lg-6 col-xl-4">
+                                            <label>Cliente</label>
+                                            <div class="input-group input-group-sm input-clear">
+                                                <input type="text"
+                                                       id="txtClienteNombre"
+                                                       class="form-control form-control-sm autocomplete-cliente"
+                                                       placeholder="Buscar cliente..."
+                                                       data-tipo="cliente"
+                                                       autocomplete="off" />
+                                                <div class="input-group-append">
+                                                    <button type="button"
+                                                            class="btn btn-outline-secondary btn-clear-input"
+                                                            title="Limpiar"
+                                                            aria-label="Limpiar cliente"
+                                                            tabindex="-1"
+                                                            data-clear-targets="#txtClienteNombre,#txtClienteRuc,#txtClienteCodigo,#txtVentaLimiteCredito,#ddlClienteDireccionEnvioId,#txtClienteDireccionEnvio,#ddlClienteDireccionFacturaId,#txtClienteDireccionFactura">
+                                                        <i class="fa fa-times" aria-hidden="true"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6 col-lg-3 col-xl-2">
+                                            <label>DNI/RUC</label>
+                                            <div class="input-group input-group-sm input-clear">
+                                                <input type="text"
+                                                       id="txtClienteRuc"
+                                                       class="form-control form-control-sm autocomplete-cliente"
+                                                       placeholder="Buscar RUC/DNI..."
+                                                       data-tipo="ruc"
+                                                       autocomplete="off" />
+                                                <div class="input-group-append">
+                                                    <button type="button"
+                                                            class="btn btn-outline-secondary btn-clear-input"
+                                                            title="Limpiar"
+                                                            aria-label="Limpiar RUC o DNI"
+                                                            tabindex="-1"
+                                                            data-clear-targets="#txtClienteNombre,#txtClienteRuc,#txtClienteCodigo,#txtVentaLimiteCredito,#ddlClienteDireccionEnvioId,#txtClienteDireccionEnvio,#ddlClienteDireccionFacturaId,#txtClienteDireccionFactura">
+                                                        <i class="fa fa-times" aria-hidden="true"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6 col-lg-4 col-xl-2">
+                                            <label>Lista P.</label>
+                                            <select id="ddlClienteListaPrecio" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-md-12 col-lg-8 col-xl-2">
+                                            <label>Vendedor</label>
+                                            <select id="ddlVentaVendedor" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-md-6 col-lg-6 col-xl-2">
+                                            <label>Almacén</label>
+                                            <select id="ddlVentaAlmacen" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-md-6 col-lg-6 col-xl-2">
+                                            <label>Fecha Atención</label>
+                                            <input type="text" id="txtVentaFechaAtencion" class="form-control form-control-sm input-fecha" />
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row compact-form align-items-end">
+
+                                        <div class="col-md-3 col-lg-3 col-xl-2">
+                                            <label>Id Dir. Envío</label>
+                                            <select id="ddlClienteDireccionEnvioId" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-md-9 col-lg-9 col-xl-4">
+                                            <label>Dirección Envío</label>
+                                            <input type="text" id="txtClienteDireccionEnvio" class="form-control form-control-sm" readonly tabindex="-1" />
+                                        </div>
+
+                                        <div class="col-md-3 col-lg-3 col-xl-2">
+                                            <label>Id Dir. Factura</label>
+                                            <select id="ddlClienteDireccionFacturaId" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-md-9 col-lg-9 col-xl-4">
+                                            <label>Dirección Factura</label>
+                                            <input type="text" id="txtClienteDireccionFactura" class="form-control form-control-sm" readonly tabindex="-1" />
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="tab-logistica" class="tab-pane">
+                                <div class="card mb-2 p-2">
+                                    <div class="row compact-form">
+
+                                        <div class="col-12 col-sm-6 col-lg-2">
+                                            <label>Tipo Embalaje</label>
+                                            <select id="ddlLogisticaTipoEmbalaje" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-lg-3">
+                                            <label>Lugar Entrega</label>
+                                            <select id="ddlLogisticaLugarEntrega" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-12 col-sm-12 col-lg-2">
+                                            <label>Fecha Entrega</label>
+                                            <input id="txtLogisticaFechaEntrega" class="form-control form-control-sm input-fecha" autocomplete="off" />
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-lg-2">
+                                            <label>Hora Entrega</label>
+                                            <select id="ddlLogisticaHoraEntrega" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-lg-3">
+                                            <label>Modo Envío</label>
+                                            <select id="ddlLogisticaModoEnvio" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row compact-form">
+
+                                        <div class="col-12 col-sm-6 col-lg-2">
+                                            <label>Agencia</label>
+                                            <input id="txtLogisticaAgencia" class="form-control form-control-sm" autocomplete="off" maxlength="150" />
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-lg-2">
+                                            <label>DNI/RUC</label>
+                                            <input id="txtLogisticaRuc" class="form-control form-control-sm" autocomplete="off" maxlength="25" inputmode="numeric" />
+                                        </div>
+
+                                        <div class="col-12 col-sm-12 col-lg-3">
+                                            <label>Nombre Completo</label>
+                                            <input id="txtLogisticaContactoNombre" class="form-control form-control-sm" autocomplete="off" maxlength="50" />
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-lg-2">
+                                            <label>Teléfono</label>
+                                            <input id="txtLogisticaTelefono" class="form-control form-control-sm" autocomplete="off" maxlength="20" inputmode="numeric" />
+                                        </div>
+
+                                        <div class="col-12 col-sm-6 col-lg-3">
+                                            <label>Lugar Envío</label>
+                                            <div class="input-group input-group-sm">
+                                                <input id="txtLogisticaLugarEnvio" class="form-control" autocomplete="off" readonly maxlength="250" />
+                                                <div class="input-group-append">
+                                                    <button type="button" id="btnDesbloquearLugarEnvio" class="btn btn-outline-warning" title="Habilitar ingreso de lugar de envío" tabindex="-1">
+                                                        <i class="fa fa-unlock-alt"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row compact-form">
+
+                                        <div class="col-12">
+                                            <label>Comentarios</label>
+                                            <input id="txtLogisticaComentarios" class="form-control form-control-sm" autocomplete="off" maxlength="254" />
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="tab-financiero" class="tab-pane">
+                                <div class="card mb-2 p-2">
+                                    <div class="row compact-form">
+
+                                        <div class="col-lg-3">
+                                            <label>Forma Pago</label>
+                                            <select id="ddlFinancieroFormaPago" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-lg-3">
+                                            <label>Tipo Comprobante</label>
+                                            <select id="ddlFinancieroTipoComprobante" class="form-control form-control-sm"></select>
+                                        </div>
+
+                                        <div class="col-lg-6">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <label class="mb-0">Notas Crédito aplicables NC</label>
+
+                                                <button type="button"
+                                                        id="btnActualizarNotasCredito"
+                                                        class="btn btn-primary btn-xs ml-2">
+                                                    <i class="fa fa-refresh"></i> Actualizar
+                                                </button>
+                                            </div>
+
+                                            <div id="contenedorNotasCredito"
+                                                 class="notas-credito-grid">
+                                                <small class="text-muted">Seleccione un cliente para cargar notas de crédito.</small>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="card mb-2 p-1">
+                            <div id="detalleScrollContainer">
+                                <table id="tblVentaDetalle" class="table table-sm table-bordered table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:40px"></th>
+                                            <th style="width:40px"></th>
+                                            <th class="ordenar-col th-col-descripcion" data-col="2">
+                                                Descripción
+                                                <span class="col-resizer" title="Arrastrar para ajustar ancho (Doble clic para restablecer)"></span>
+                                            </th>
+                                            <th class="ordenar-col" data-col="3">Código</th>
+                                            <th class="ordenar-col" data-col="4">
+                                                Por Vender
+                                                <button type="button" id="btnActualizarStockDetalle" class="btn btn-xs btn-outline-light ml-1" title="Actualizar Por Vender desde SAP" tabindex="-1" style="padding: 0px 4px; font-size: 10px; line-height: 1.4; vertical-align: middle; border-color: rgba(255,255,255,0.7); border-radius: 3px;">
+                                                    <i class="fa fa-sync-alt"></i>
+                                                </button>
+                                            </th>
+                                            <th class="ordenar-col" data-col="5">Cantidad</th>
+                                            <th>UMD</th>
+                                            <th class="ordenar-col" data-col="7">Precio</th>
+                                            <th class="ordenar-col" data-col="8">Total</th>
+                                            <th class="ordenar-col" data-col="9">F. Venc.</th>
+                                            <th>Regalo</th>
+                                            <th>DSC</th>
+                                            <th style="width:40px"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="card p-1">
+                            <div class="row align-items-end">
+
+                                <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2">
+                                    <label>Límite Crédito</label>
+                                    <div class="input-group input-group-sm">
+                                        <input id="txtVentaLimiteCredito" class="form-control text-right" readonly value="0.00" />
+                                        <div class="input-group-append">
+                                            <button type="button" id="btnDesgloseCredito" class="btn btn-outline-success" title="Ver desglose del límite de crédito" tabindex="-1" disabled>
+                                                <i class="fa fa-info-circle"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2">
+                                    <label>Total Items</label>
+                                    <input id="txtVentaTotalItems" class="form-control form-control-sm text-right" readonly />
+                                </div>
+
+                                <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2">
+                                    <label>Flete</label>
+                                    <div class="input-group input-group-sm">
+                                        <input id="txtVentaFlete" class="form-control text-right bg-light" inputmode="decimal" autocomplete="off" readonly value="0.00" />
+                                        <div class="input-group-append">
+                                            <button type="button" id="btnDesbloquearFlete" class="btn btn-outline-warning" title="Habilitar ingreso de flete" tabindex="-1">
+                                                <i class="fa fa-unlock-alt"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2">
+                                    <label>Monto Total</label>
+                                    <input id="txtVentaTotal" class="form-control form-control-sm text-right" readonly />
+                                </div>
+
+                                <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2">
+                                    <label>Descuento Total</label>
+                                    <input id="txtVentaDescuento" class="form-control form-control-sm text-right" readonly />
+                                </div>
+
+                                <div class="col-12 col-sm-6 col-md-6 col-lg-4 col-xl-2">
+                                    <label>Neto a Pagar</label>
+                                    <input id="txtVentaNeto" class="form-control form-control-sm text-right" readonly />
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<br />
+<br />
+<br />
+
+<!-- MODAL F3: BÚSQUEDA AVANZADA DE ARTÍCULOS -->
+<div class="modal fade" id="modalBusquedaAvanzada" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title">Búsqueda Avanzada de Artículos <small class="text-muted">(F3)</small></h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-6 col-xl-2 mb-2 mb-md-0">
+                        <label>Descripción</label>
+                        <div class="input-group input-group-sm input-clear">
+                            <input type="text" id="txtFiltroDescripcion" class="form-control" autocomplete="off" maxlength="200" />
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary btn-clear-input" title="Limpiar" tabindex="-1">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-xl-2 mb-2 mb-md-0">
+                        <label>Código</label>
+                        <div class="input-group input-group-sm input-clear">
+                            <input type="text" id="txtFiltroCodigo" class="form-control" autocomplete="off" maxlength="200" />
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary btn-clear-input" title="Limpiar" tabindex="-1">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-xl-2 mb-2 mb-md-0">
+                        <label>Laboratorio</label>
+                        <div class="input-group input-group-sm input-clear">
+                            <input type="text" id="txtFiltroLaboratorio" class="form-control" autocomplete="off" maxlength="200" />
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary btn-clear-input" title="Limpiar" tabindex="-1">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-xl-2 mb-2 mb-md-0">
+                        <label>Principio Activo</label>
+                        <div class="input-group input-group-sm input-clear">
+                            <input type="text" id="txtFiltroPrincipioActivo" class="form-control" autocomplete="off" maxlength="200" />
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary btn-clear-input" title="Limpiar" tabindex="-1">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-xl-2 mb-2 mb-md-0">
+                        <label>Titular RS</label>
+                        <select id="ddlFiltroTitularRs" class="form-control form-control-sm" style="width:100%"></select>
+                    </div>
+                    <div class="col-6 col-xl-2 mb-2 mb-md-0 d-flex align-items-end justify-content-center">
+                        <button type="button" id="btnFiltroBuscar" class="btn btn-sm btn-primary w-100" title="Buscar">
+                            <i class="fa fa-search"></i>Buscar
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="tblBusquedaAvanzada" class="table table-sm table-bordered table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th style="width:50px">
+                                    <div class="checkbox checkbox-success" style="margin:0; padding-left:20px; line-height:1;">
+                                        <input type="checkbox" id="chkSeleccionarTodosAvanzada" title="Seleccionar todos">
+                                        <label for="chkSeleccionarTodosAvanzada"></label>
+                                    </div>
+                                </th>
+                                <th>Descripción</th>
+                                <th>Código</th>
+                                <th>Prec x Pza</th>
+                                <th>Prec x Caja</th>
+                                <th>Por Vender</th>
+                                <th>F Venc</th>
+                                <th>Principio Activo</th>
+                                <th>Estado SKU</th>
+                                <th>Observación</th>
+                                <th>Cajón M</th>
+                                <th>Especificación</th>
+                                <th>Protocolos</th>
+                                <th>Titular RS</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="btnAgregarArticulosAvanzada"><i class="fa fa-plus"></i> Agregar Artículo(s)</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times"></i> Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL LOG IMPORTADOR (desde pestaña BÚSQUEDA) -->
+<div class="modal fade" id="modalLogImportador" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title">Log Importador <small class="text-muted" id="lblLogImportadorDocEntry"></small></h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table id="tblLogImportador" class="table table-sm table-bordered table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>OV</th>
+                                <th>DOC_ENTRY</th>
+                                <th>FECHA</th>
+                                <th>TIPO</th>
+                                <th>DESCRIPCIÓN</th>
+                                <th>RUC</th>
+                                <th>CLIENTE</th>
+                                <th>USUARIO</th>
+                                <th>MONTO</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL F2: ASIGNACIÓN DE LOTES (por producto individual) -->
+<div class="modal fade" id="modalLotes" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title">Asignación de Lotes <small class="text-muted">(F2)</small></h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table id="tblLotes" class="table table-sm table-bordered table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th style="width:40px">
+                                    <input type="checkbox" id="chkSeleccionarTodosLotes" />
+                                </th>
+                                <th>Lote</th>
+                                <th>Nº Serie</th>
+                                <th>Cantidad Disponible</th>
+                                <th>F. Vencimiento</th>
+                                <th>Ubicación</th>
+                                <th>Cantidad a Usar</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" id="btnSelLotes" class="btn btn-primary">Aceptar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL F2: ASIGNACIÓN DE LOTES (todos los productos del detalle) -->
+<div class="modal fade" id="modalLotesTodos" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title mb-0">Asignación de Lotes <small class="text-muted">(F2)</small></h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <h6 class="mb-2 font-weight-bold">Productos</h6>
+                        <div style="overflow:auto; max-height:250px">
+                            <table id="tblLotesProductos" class="table table-sm table-bordered table-hover" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Descripción</th>
+                                        <th style="width:70px" class="text-right">Req.</th>
+                                        <th style="width:70px" class="text-right">Asig.</th>
+                                        <th style="width:120px" class="text-center">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-xl d-flex flex-column lotes-disp">
+                        <h6 class="mb-2 font-weight-bold">Lotes Disponibles</h6>
+                        <div style="overflow:auto; max-height:350px">
+                            <table id="tblLotesDisponibles" class="table table-sm table-bordered table-hover" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Lote</th>
+                                        <th>Vencimiento</th>
+                                        <th>Disponible</th>
+                                        <th>Usar</th>
+                                        <th>Ingreso</th>
+                                        <th style="width:50px"></th>
+                                        <th>Protocolo</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-12 col-xl d-flex flex-column lotes-asig">
+                        <h6 class="mb-2 font-weight-bold">Lotes Asignados</h6>
+                        <div style="overflow:auto; max-height:350px">
+                            <table id="tblLotesAsignados" class="table table-sm table-bordered table-hover" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Lote</th>
+                                        <th>Serie</th>
+                                        <th>Cantidad</th>
+                                        <th style="width:50px"></th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer flex-wrap">
+                <div class="col-12 col-xl mb-1 px-0">
+                    <button type="button" id="btnAsignacionAutomatica" class="btn btn-block" style="background-color:#1d81ce;color:#fff;" title="Asignar automáticamente todos los lotes">
+                        <i class="fa fa-bolt"></i> Asignación Automática
+                    </button>
+                </div>
+                <div class="col-12 col-xl mb-1 px-0">
+                    <button type="button" id="btnSelLotesTodos" class="btn btn-primary btn-block"><i class="fa fa-save"></i> Guardar Asignación de Lotes</button>
+                </div>
+                <div class="col-12 col-xl mb-1 px-0">
+                    <button type="button" class="btn btn-secondary btn-block" data-dismiss="modal"><i class="fa fa-times"></i> Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalImportarExcel" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-md" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title"><i class="fa fa-file-excel"></i> Importar Artículos desde Excel</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Seleccionar archivo Excel:</label>
+                    <div class="input-group">
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="fileImportarExcel" accept=".xls,.xlsx,.xlsm">
+                            <label class="custom-file-label" for="fileImportarExcel" id="lblArchivoExcel">Seleccionar archivo...</label>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted">Formato: Columna A = Código Artículo, Columna C = Cantidad</small>
+                </div>
+                <div class="form-group" id="divSeleccionHoja" style="display:none">
+                    <label>Seleccionar hoja:</label>
+                    <select class="form-control form-control-sm" id="ddlImportarHoja">
+                        <option value="">-- Seleccionar hoja --</option>
+                    </select>
+                </div>
+                <div id="divVistaPrevia" style="display:none">
+                    <label>Vista previa:</label>
+                    <div style="max-height:200px;overflow:auto;border:1px solid #ddd;border-radius:4px">
+                        <table class="table table-sm table-bordered table-striped mb-0" id="tblVistaPreviaExcel">
+                            <thead>
+                                <tr>
+                                    <th style="width:60px;text-align:center;">Fila</th>
+                                    <th>Código</th>
+                                    <th style="width:90px;text-align:right;">Cantidad</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted" id="lblTotalFilasExcel"></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary btn-sm" id="btnCargarExcel"><i class="fa fa-upload"></i> Cargar Artículos</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal"><i class="fa fa-times"></i> Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: DESGLOSE DE LÍMITE DE CRÉDITO -->
+<div class="modal fade" id="modalDesgloseCredito" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-md modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title">Desglose de Límite de Crédito</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table id="tblDesgloseCredito" class="table table-sm table-bordered table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Descripción</th>
+                                <th style="width:35%">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MENÚ CONTEXTUAL PARA COPIAR Y BUSCAR EN DETALLE DE VENTA -->
+<div id="menuContextualDetalleVenta" class="dropdown-menu shadow menu-contextual-flotante" style="position: fixed; display: none; z-index: 1050; min-width: 290px; padding: 0;">
+    <!-- Buscador integrado unificado -->
+    <div class="p-2 border-bottom ctx-search-header" style="background-color: #f8faf9; border-top-left-radius: 6px; border-top-right-radius: 6px;">
+        <div class="ctx-search-group">
+            <span class="ctx-search-icon"><i class="fa fa-search"></i></span>
+            <input type="text" id="txtCtxBuscarDetalle" class="ctx-search-input" placeholder="Buscar en detalle (Enter)..." autocomplete="off">
+            <div class="ctx-search-buttons">
+                <button type="button" class="btn-ctx-action btn-ctx-limpiar" id="btnCtxBuscarLimpiar" title="Limpiar búsqueda">
+                    <i class="fa fa-times"></i>
+                </button>
+                <button type="button" class="btn-ctx-action" id="btnCtxBuscarAnterior" title="Coincidencia anterior (Shift+Enter)">
+                    <i class="fa fa-chevron-up"></i>
+                </button>
+                <button type="button" class="btn-ctx-action" id="btnCtxBuscarSiguiente" title="Siguiente coincidencia (Enter)">
+                    <i class="fa fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+        <div id="lblCtxBuscarDetalleInfo" class="justify-content-between align-items-center mt-1" style="display: none; font-size: 0.72rem; color: #6c757d;">
+            <span id="lblCtxBuscarDetalleConteo" class="font-weight-600">0 coincidencias</span>
+            <span class="text-muted" style="font-size: 0.68rem;">Enter: sig | Esc: cerrar</span>
+        </div>
+    </div>
+
+    <!-- Opciones de copiado -->
+    <div class="py-1">
+        <a class="dropdown-item py-2 text-dark font-weight-500" href="javascript:void(0);" id="btnCtxCopiarFila">
+            <i class="fa fa-copy text-primary mr-2"></i> Copiar fila actual
+        </a>
+        <a class="dropdown-item py-2 text-dark font-weight-500" href="javascript:void(0);" id="btnCtxCopiarTodas">
+            <i class="fa fa-table text-success mr-2"></i> Copiar todas las filas
+        </a>
+    </div>
+</div>
+
+<!-- MODAL: MODIFICAR CONDICIÓN DE PAGO -->
+<div class="modal fade" id="modalModificarCondicionPago" tabindex="-1" role="dialog" data-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title font-weight-bold"><i class="fa fa-credit-card mr-2"></i>Condición de Pago SAP</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">&times;</button>
+            </div>
+            <div class="modal-body pb-1">
+                <input type="hidden" id="hdnModalDocEntry" value="" />
+                <input type="hidden" id="hdnModalDocEntrySap" value="" />
+                <input type="hidden" id="hdnModalActualGroupNum" value="" />
+
+                <ul class="nav nav-tabs mb-3" id="tabCondicionPago" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active font-weight-bold" id="tab-modificar-cond-link" data-toggle="tab" href="#tab-modificar-cond" role="tab" aria-controls="tab-modificar-cond" aria-selected="true">
+                            <i class="fa fa-edit mr-1"></i>Modificar Condición
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link font-weight-bold" id="tab-historial-cond-link" data-toggle="tab" href="#tab-historial-cond" role="tab" aria-controls="tab-historial-cond" aria-selected="false">
+                            <i class="fa fa-history mr-1"></i>Historial de Modificaciones
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="tabContentCondicionPago">
+                    <!-- TAB 1: MODIFICAR CONDICIÓN -->
+                    <div class="tab-pane fade show active" id="tab-modificar-cond" role="tabpanel" aria-labelledby="tab-modificar-cond-link">
+                        <div id="alertBloqueoCondicionPago" class="alert alert-warning py-2 mb-3 d-none" role="alert">
+                            <i class="fa fa-lock mr-2"></i><span id="lblMensajeBloqueoCondicion"></span>
+                        </div>
+
+                        <div class="form-group row mb-2">
+                            <label class="col-sm-4 col-form-label col-form-label-sm font-weight-bold">N° Orden SAP:</label>
+                            <div class="col-sm-8">
+                                <input type="text" id="lblModalDocNum" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                        </div>
+
+                        <div class="form-group row mb-2">
+                            <label class="col-sm-4 col-form-label col-form-label-sm font-weight-bold">Cliente:</label>
+                            <div class="col-sm-8">
+                                <input type="text" id="lblModalCardName" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                        </div>
+
+                        <div class="form-group row mb-2">
+                            <label class="col-sm-4 col-form-label col-form-label-sm font-weight-bold">RUC:</label>
+                            <div class="col-sm-8">
+                                <input type="text" id="lblModalRuc" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                        </div>
+
+                        <div class="form-group row mb-2">
+                            <label class="col-sm-4 col-form-label col-form-label-sm font-weight-bold">Estado SAP:</label>
+                            <div class="col-sm-8">
+                                <input type="text" id="lblModalEstadoSap" class="form-control form-control-sm bg-light font-weight-bold text-primary" readonly />
+                            </div>
+                        </div>
+
+                        <div class="form-group row mb-3">
+                            <label class="col-sm-4 col-form-label col-form-label-sm font-weight-bold">Condición Actual:</label>
+                            <div class="col-sm-8">
+                                <input type="text" id="lblModalCondicionActual" class="form-control form-control-sm bg-light font-weight-bold text-dark" readonly />
+                            </div>
+                        </div>
+
+                        <div id="pnlNuevaCondicionPago">
+                            <hr class="my-2" />
+
+                            <div class="form-group row mb-1">
+                                <label class="col-sm-4 col-form-label col-form-label-sm font-weight-bold text-success">Nueva Condición:</label>
+                                <div class="col-sm-8">
+                                    <select id="ddlModalNuevaCondicionPago" class="form-control form-control-sm font-weight-bold">
+                                        <option value="">&lt;&lt; SELECCIONAR &gt;&gt;</option>
+                                    </select>
+                                    <small id="lblModalRolBadge" class="form-text text-muted"></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: HISTORIAL DE MODIFICACIONES -->
+                    <div class="tab-pane fade" id="tab-historial-cond" role="tabpanel" aria-labelledby="tab-historial-cond-link">
+                        <div class="table-responsive">
+                            <table id="tblHistorialCondicionPago" class="table table-sm table-bordered table-striped table-hover w-100" style="width:100%;">
+                                <thead style="background-color:#1ab394;color:white;">
+                                    <tr>
+                                        <th style="background-color:#1ab394;color:white;width:40px;" class="text-center">#</th>
+                                        <th style="background-color:#1ab394;color:white;width:130px;" class="text-center">Fecha y Hora</th>
+                                        <th style="background-color:#1ab394;color:white;width:120px;" class="text-center">Usuario</th>
+                                        <th style="background-color:#1ab394;color:white;" class="text-center">Condición Anterior</th>
+                                        <th style="background-color:#1ab394;color:white;" class="text-center">Condición Nueva</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" id="btnGuardarCondicionPago" class="btn btn-sm btn-primary" style="background-color:#1ab394;border-color:#1ab394;">
+                    <i class="fa fa-save mr-1"></i>Guardar Cambios
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">
+                    <i class="fa fa-times mr-1"></i>Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    label {
+        font-weight: bold;
+    }
+    .menu-contextual-flotante {
+        border-radius: 6px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        padding: 4px 0;
+        background-color: #fff;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18) !important;
+    }
+
+        .menu-contextual-flotante .dropdown-item {
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+        }
+
+            .menu-contextual-flotante .dropdown-item:hover {
+                background-color: #f1f8f6;
+                color: #1ab394 !important;
+            }
+
+    .ctx-search-group {
+        display: flex;
+        align-items: center;
+        border: 1px solid #1ab394;
+        border-radius: 4px;
+        background-color: #fff;
+        overflow: hidden;
+        height: 28px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        transition: box-shadow 0.2s ease-in-out;
+    }
+
+        .ctx-search-group:focus-within {
+            box-shadow: 0 0 0 2px rgba(26, 179, 148, 0.25);
+        }
+
+    .ctx-search-icon {
+        padding: 0 6px 0 8px;
+        color: #1ab394;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .ctx-search-input {
+        flex: 1;
+        border: none !important;
+        outline: none !important;
+        font-size: 0.8rem;
+        padding: 2px 4px !important;
+        background: transparent !important;
+        color: #495057;
+        height: 100%;
+        min-width: 0;
+    }
+
+    .ctx-search-buttons {
+        display: flex;
+        height: 100%;
+    }
+
+    .btn-ctx-action {
+        border: none !important;
+        border-left: 1px solid rgba(26, 179, 148, 0.3) !important;
+        background: transparent;
+        padding: 0 7px !important;
+        font-size: 0.75rem;
+        color: #6c757d;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.15s, color 0.15s;
+    }
+
+        .btn-ctx-action:hover {
+            background-color: #e8f7f3 !important;
+            color: #1ab394 !important;
+        }
+
+        .btn-ctx-action.btn-ctx-limpiar {
+            color: #dc3545;
+        }
+
+            .btn-ctx-action.btn-ctx-limpiar:hover {
+                background-color: #fde8e8 !important;
+                color: #c82333 !important;
+            }
+
+    .fila-busqueda-resaltada {
+        background-color: #d1f2eb !important;
+        outline: 2px solid #1ab394 !important;
+        transition: background-color 0.3s ease;
+    }
+
+    #tblVentaDetalle input:disabled,
+    #tblVentaDetalle select:disabled,
+    #tblVentaDetalle button:disabled,
+    #tblVentaDetalle .disabled {
+        pointer-events: none;
+    }
+
+    @@media (min-width: 1200px) {
+        .lotes-disp {
+            flex: 0 0 65% !important;
+            max-width: 65% !important;
+        }
+
+        .lotes-asig {
+            flex: 0 0 35% !important;
+            max-width: 35% !important;
+        }
+    }
+
+    .btn-custom {
+        background-color: #1ab394;
+        color: white;
+        border-color: #1ab394;
+    }
+
+    #tblBusquedaVentas {
+        width: 100% !important;
+    }
+
+        #tblBusquedaVentas thead th,
+        #tblLotesProductos thead th,
+        #tblLotesDisponibles thead th,
+        #tblLotesAsignados thead th,
+        #tblBusquedaAvanzada thead th,
+        #tblDesgloseCredito thead th,
+        #tblVistaPreviaExcel thead th,
+        #tblLogImportador thead th {
+            background-color: #1ab394;
+            color: white;
+            text-align: center;
+        }
+
+        #tblBusquedaVentas tbody td {
+            white-space: nowrap;
+        }
+
+        #tblBusquedaVentas tbody tr.row-selected td {
+            background-color: #a8c4d8 !important;
+            color: #174a7c !important;
+            box-shadow: inset 3px 0 0 #7a9db5;
+        }
+
+    #btnBusquedaAcciones + .dropdown-menu .dropdown-item:hover,
+    #btnBusquedaAcciones + .dropdown-menu .dropdown-item:focus,
+    #btnBusquedaAcciones + .dropdown-menu .dropdown-item:active {
+        background-color: #d8efe9;
+        color: #0f8a72;
+    }
+
+    #tblBusquedaVentas tbody tr.row-selected td:first-child {
+        box-shadow: inset 3px 0 0 #7a9db5;
+    }
+
+    #tblBusquedaVentas thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    #tblBusquedaVentas_wrapper {
+        max-height: calc(100vh - 420px);
+        overflow-y: auto;
+    }
+
+    #tblBusquedaVentas thead th:nth-child(1)::after,
+    #tblBusquedaVentas thead th:nth-child(2)::after,
+    #tblBusquedaVentas thead th:nth-child(3)::after {
+        display: none !important;
+    }
+
+    #tblBusquedaAvanzada tbody td {
+        white-space: nowrap;
+    }
+
+    #tblBusquedaAvanzada thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        white-space: nowrap;
+    }
+
+    #tblBusquedaAvanzada,
+    #tblBusquedaAvanzada tr,
+    #tblBusquedaAvanzada td,
+    #tblBusquedaAvanzada th {
+        outline: none !important;
+    }
+
+        #tblBusquedaAvanzada tbody tr {
+            scroll-margin-top: 45px;
+            scroll-margin-bottom: 25px;
+        }
+
+            #tblBusquedaAvanzada tbody tr.selected td {
+                background-color: #d0e6f8 !important;
+                color: #174a7c !important;
+            }
+
+    #tblBusquedaAvanzada_wrapper {
+        max-height: calc(100vh - 280px);
+        min-height: 400px;
+        overflow-y: auto;
+    }
+
+    .form-control-sm,
+    .form-control-sm select {
+        height: 32px !important; /* Ajusta al valor que se vea bien */
+        line-height: 1.5 !important; /* opcional, asegura alineación de texto */
+    }
+
+    .nav-pills .nav-link {
+        padding: 0.25rem 0.75rem; /* menos padding vertical que el default */
+        line-height: 1.2; /* ajusta el alto de línea */
+        font-size: 0.875rem; /* opcional, un poco más pequeño */
+    }
+
+    /*     .autocomplete-cliente {
+            border-right: 0;
+        }
+
+        .clear-cliente {
+            border-left: 0;
+        }
+        */
+
+    /*COLORES DE LOS TABS*/
+
+    .tabs-pv > li.active > a,
+    .tabs-pv > li.active > a:hover,
+    .tabs-pv > li.active > a:focus,
+    .tabs-pv .nav-link.active {
+        background-color: #1ab394 !important;
+        border-color: #1ab394 !important;
+        color: #fff !important;
+        font-weight: 600;
+    }
+
+    .nav-pills-pv > li.active > a,
+    .nav-pills-pv > li.active > a:hover,
+    .nav-pills-pv > li.active > a:focus,
+    .nav-pills-pv .nav-link.active,
+    .nav-pills-pv .show > .nav-link {
+        background-color: #1ab394 !important;
+        color: #fff !important;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(26, 179, 148, 0.25);
+    }
+    /*********************************/
+
+
+    /*UTILIZAR PARA BOTON CLEAR INPUT*/
+    /*********************************/
+    .input-clear .form-control {
+        border-right: 0;
+    }
+
+    .input-clear .input-group-append .btn {
+        border-left: 0;
+        border-color: #e5e6e7;
+        background-color: #fff;
+        color: #6c757d;
+    }
+
+    .input-clear:focus-within .input-group-append .btn {
+        border-color: #1ab394;
+    }
+
+    .input-clear .input-group-append .btn:hover {
+        color: #6c757d;
+        background-color: #fff;
+        border-color: #e5e6e7;
+    }
+
+    .input-clear:focus-within .input-group-append .btn:hover {
+        border-color: #1ab394;
+        background-color: #fff;
+        color: #6c757d;
+    }
+
+    .input-clear .input-group-append .btn,
+    .input-clear .input-group-append .btn:focus,
+    .input-clear .input-group-append .btn:active,
+    .input-clear .input-group-append .btn:not(:disabled):not(.disabled):active {
+        outline: none !important;
+        box-shadow: none !important;
+        background-image: none !important;
+    }
+    /*********************************/
+
+    /*nota de credito*/
+    .notas-credito-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+        gap: 6px;
+        max-height: 126px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border: 1px solid #d9e8e5;
+        border-radius: 6px;
+        padding: 6px;
+        background-color: #fff;
+    }
+
+    .nota-credito-item {
+        position: relative;
+        display: block;
+        min-height: 48px;
+        margin: 0;
+        padding: 6px 8px 6px 26px;
+        border: 1px solid #cfe9e3;
+        border-radius: 6px;
+        background-color: #f0fbf8;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+        .nota-credito-item:hover {
+            border-color: #1ab394;
+            background-color: #e6f8f4;
+            box-shadow: 0 3px 8px rgba(26, 179, 148, 0.22);
+            transform: translateY(-1px);
+        }
+
+        .nota-credito-item input[type="checkbox"] {
+            position: absolute;
+            top: 9px;
+            left: 8px;
+            margin: 0;
+        }
+
+    .nota-credito-texto {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.15;
+    }
+
+    .nota-credito-docnum {
+        font-size: 12px;
+        font-weight: 600;
+        color: #2f4050;
+    }
+
+    .nota-credito-total {
+        margin-top: 4px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #159a80;
+    }
+
+    .nota-credito-item:has(input:checked) {
+        border-color: #1ab394;
+        background-color: #dff7f1;
+        box-shadow: inset 0 0 0 1px #1ab394, 0 3px 8px rgba(26, 179, 148, 0.2);
+    }
+    /*********************************/
+
+    /*AUTOCOMPLETE*/
+    .ui-autocomplete {
+        z-index: 99999 !important;
+        max-height: 280px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border: 1px solid #1ab394 !important;
+        border-radius: 6px;
+        padding: 4px;
+        background-color: #fff !important;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    }
+
+        .ui-autocomplete .ui-menu-item {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .ui-autocomplete .ui-menu-item-wrapper {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            background: transparent !important;
+        }
+
+    .autocomplete-cliente-item {
+        padding: 7px 9px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .autocomplete-cliente-nombre {
+        font-size: 12px;
+        font-weight: 600;
+        color: #2f4050;
+        line-height: 1.2;
+    }
+
+    .autocomplete-cliente-meta {
+        margin-top: 2px;
+        font-size: 11px;
+        color: #6c757d;
+    }
+
+    .ui-autocomplete .ui-menu-item-wrapper.ui-state-active,
+    .ui-autocomplete .ui-menu-item-wrapper.ui-state-focus,
+    .ui-autocomplete .ui-menu-item-wrapper:hover,
+    .ui-autocomplete .ui-widget-content .ui-state-active,
+    .ui-autocomplete .ui-widget-content .ui-state-focus {
+        background: transparent !important;
+        border: none !important;
+        color: inherit !important;
+    }
+
+        .ui-autocomplete .ui-menu-item-wrapper.ui-state-active .autocomplete-cliente-item,
+        .ui-autocomplete .ui-menu-item-wrapper.ui-state-focus .autocomplete-cliente-item,
+        .ui-autocomplete .ui-menu-item-wrapper:hover .autocomplete-cliente-item {
+            background-color: #1ab394 !important;
+        }
+
+        .ui-autocomplete .ui-menu-item-wrapper.ui-state-active .autocomplete-cliente-nombre,
+        .ui-autocomplete .ui-menu-item-wrapper.ui-state-active .autocomplete-cliente-meta,
+        .ui-autocomplete .ui-menu-item-wrapper.ui-state-focus .autocomplete-cliente-nombre,
+        .ui-autocomplete .ui-menu-item-wrapper.ui-state-focus .autocomplete-cliente-meta,
+        .ui-autocomplete .ui-menu-item-wrapper:hover .autocomplete-cliente-nombre,
+        .ui-autocomplete .ui-menu-item-wrapper:hover .autocomplete-cliente-meta {
+            color: #fff !important;
+        }
+    /* FIX FINAL JQUERY UI AUTOCOMPLETE ACTIVE */
+    .ui-widget-content .ui-state-active,
+    .ui-widget-content .ui-state-focus,
+    .ui-widget-header .ui-state-active,
+    .ui-widget-header .ui-state-focus,
+    .ui-state-active,
+    .ui-state-focus {
+        background: #1ab394 !important;
+        background-image: none !important;
+        border: 1px solid #1ab394 !important;
+        color: #fff !important;
+    }
+
+        .ui-widget-content .ui-state-active .autocomplete-cliente-item,
+        .ui-widget-content .ui-state-focus .autocomplete-cliente-item,
+        .ui-state-active .autocomplete-cliente-item,
+        .ui-state-focus .autocomplete-cliente-item {
+            background: #1ab394 !important;
+            background-image: none !important;
+        }
+
+        .ui-widget-content .ui-state-active .autocomplete-cliente-nombre,
+        .ui-widget-content .ui-state-active .autocomplete-cliente-meta,
+        .ui-widget-content .ui-state-focus .autocomplete-cliente-nombre,
+        .ui-widget-content .ui-state-focus .autocomplete-cliente-meta,
+        .ui-state-active .autocomplete-cliente-nombre,
+        .ui-state-active .autocomplete-cliente-meta,
+        .ui-state-focus .autocomplete-cliente-nombre,
+        .ui-state-focus .autocomplete-cliente-meta {
+            color: #fff !important;
+        }
+    /*********************************/
+
+    #tblVentaDetalle {
+        font-size: 0.75rem;
+        margin-bottom: 0;
+        width: 100%;
+        min-width: 1330px;
+    }
+
+        #tblVentaDetalle th,
+        #tblVentaDetalle td {
+            padding: 2px 4px !important;
+            vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #tblVentaDetalle td {
+            white-space: nowrap;
+        }
+
+        #tblVentaDetalle .input-group {
+            flex-wrap: nowrap !important;
+        }
+
+        #tblVentaDetalle .input-group-append {
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+            display: flex !important;
+            flex-wrap: nowrap !important;
+        }
+
+            #tblVentaDetalle .input-group-append .btn {
+                flex-shrink: 0 !important;
+                white-space: nowrap !important;
+            }
+
+        #tblVentaDetalle thead th {
+            background: #1ab394 !important;
+            background-color: #1ab394 !important;
+            background-clip: padding-box;
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            border-bottom: none;
+            padding: 3px 4px !important;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+            #tblVentaDetalle thead th.th-col-descripcion,
+            #tblBusquedaVentas thead th.th-col-cliente,
+            #tblBusquedaVentas thead th.th-col-comentario {
+                position: sticky;
+                top: 0;
+                user-select: none;
+            }
+
+            #tblVentaDetalle thead th.th-col-descripcion {
+                min-width: 400px;
+            }
+
+    #tblBusquedaVentas thead th.th-col-cliente {
+        width: 280px;
+        min-width: 100px;
+        max-width: 280px;
+    }
+
+    #tblBusquedaVentas thead th.th-col-comentario {
+        width: 220px;
+        min-width: 80px;
+        max-width: 220px;
+    }
+
+    #tblBusquedaVentas thead th.th-col-vendedor {
+        width: 130px;
+        min-width: 60px;
+        max-width: 130px;
+    }
+
+    #tblBusquedaVentas tbody td.col-cliente-cell,
+    #tblBusquedaVentas tbody td.col-comentario-cell,
+    #tblBusquedaVentas tbody td.col-vendedor-cell {
+        max-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+        #tblBusquedaVentas tbody td.col-cliente-cell .celda-cliente,
+        #tblBusquedaVentas tbody td.col-comentario-cell .celda-comentario,
+        #tblBusquedaVentas tbody td.col-vendedor-cell .celda-vendedor {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+        }
+
+    #tblVentaDetalle thead th .col-resizer,
+    #tblBusquedaVentas thead th .col-resizer {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 8px;
+        cursor: col-resize;
+        z-index: 25;
+        background: transparent;
+        transition: background 0.15s ease;
+    }
+
+        #tblVentaDetalle thead th .col-resizer:hover,
+        #tblVentaDetalle thead th .col-resizer.active,
+        #tblBusquedaVentas thead th .col-resizer:hover,
+        #tblBusquedaVentas thead th .col-resizer.active {
+            background: rgba(255, 255, 255, 0.45);
+            border-right: 2px solid #fff;
+        }
+
+    body.col-resizing {
+        cursor: col-resize !important;
+        user-select: none !important;
+    }
+
+    #tblVentaDetalle thead th:nth-child(1) {
+        width: 36px;
+        min-width: 36px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(2) {
+        width: 36px;
+        min-width: 36px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(3) {
+        width: 30%;
+        min-width: 400px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(4) {
+        width: 11%;
+        min-width: 140px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(5) {
+        width: 9%;
+        min-width: 95px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(6) {
+        width: 9%;
+        min-width: 95px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(7) {
+        width: 11%;
+        min-width: 115px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(8) {
+        width: 9%;
+        min-width: 90px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(9) {
+        width: 10%;
+        min-width: 100px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(10) {
+        width: 10%;
+        min-width: 125px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(11) {
+        width: 5%;
+        min-width: 55px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(12) {
+        width: 4%;
+        min-width: 45px;
+    }
+
+    #tblVentaDetalle thead th:nth-child(13) {
+        width: 36px;
+        min-width: 36px;
+    }
+
+    #tblVentaDetalle .form-control-sm {
+        height: 24px !important;
+        font-size: 0.75rem;
+        padding: 0 4px;
+    }
+
+    #tblVentaDetalle .txtDetalleDescripcion {
+        font-weight: 700 !important;
+    }
+
+    #detalleScrollContainer {
+        min-height: 250px;
+        max-height: calc(100vh - 420px);
+        overflow: auto;
+    }
+
+    .btn-detalle-imagen {
+        color: rgb(35, 109, 201) !important;
+        border: 1px solid rgb(35, 109, 201) !important;
+        background-color: transparent !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        vertical-align: middle !important;
+        padding: 0 5px !important;
+        height: 24px !important;
+        line-height: 1 !important;
+        margin-left: 2px !important;
+        border-radius: 3px !important;
+        cursor: pointer !important;
+    }
+
+        .btn-detalle-imagen i {
+            color: rgb(35, 109, 201) !important;
+            font-size: 0.92rem !important;
+            line-height: 1 !important;
+            display: inline-block !important;
+        }
+
+        .btn-detalle-imagen:hover,
+        .btn-detalle-imagen:focus {
+            background-color: rgb(35, 109, 201) !important;
+            border-color: rgb(35, 109, 201) !important;
+            color: #fff !important;
+        }
+
+            .btn-detalle-imagen:hover i,
+            .btn-detalle-imagen:focus i {
+                color: #fff !important;
+            }
+
+    #btnDesgloseCredito {
+        color: rgb(26, 179, 148) !important;
+        border: 1px solid rgb(26, 179, 148) !important;
+        background-color: transparent !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        vertical-align: middle !important;
+        padding: 0 5px !important;
+        /*height: 24px !important;*/
+        line-height: 1 !important;
+        margin-left: 2px !important;
+        border-radius: 3px !important;
+    }
+
+        #btnDesgloseCredito i {
+            color: rgb(26, 179, 148) !important;
+            font-size: 0.92rem !important;
+            line-height: 1 !important;
+            display: inline-block !important;
+        }
+
+        #btnDesgloseCredito:hover,
+        #btnDesgloseCredito:focus {
+            background-color: rgb(26, 179, 148) !important;
+            border-color: rgb(26, 179, 148)) !important;
+            color: #fff !important;
+        }
+
+            #btnDesgloseCredito:hover i,
+            #btnDesgloseCredito:focus i {
+                color: #fff !important;
+            }
+
+    /* LOTE: modal asignacion */
+    #tblLotesProductos tr.lote-sin-cantidad,
+    #tblLotesProductos tr.lote-sin-cantidad td {
+        background-color: #fff0f0 !important;
+    }
+
+        #tblLotesProductos tr.lote-sin-cantidad:hover td {
+            background-color: #ffe0e0 !important;
+        }
+
+    #tblLotesProductos tr.lote-asignacion-parcial,
+    #tblLotesProductos tr.lote-asignacion-parcial td {
+        background-color: #ffe8cc !important;
+        color: #7d3c00 !important;
+    }
+
+        #tblLotesProductos tr.lote-asignacion-parcial:hover td {
+            background-color: #ffd8a8 !important;
+        }
+
+        #tblLotesProductos tr.lote-asignacion-parcial td:first-child {
+            border-left: 5px solid #fd7e14 !important;
+        }
+
+    #tblLotesProductos tr.lote-asignacion-multilote,
+    #tblLotesProductos tr.lote-asignacion-multilote td {
+        background-color: #f8d7da !important;
+        color: #721c24 !important;
+    }
+
+        #tblLotesProductos tr.lote-asignacion-multilote:hover td {
+            background-color: #f5c6cb !important;
+        }
+
+        #tblLotesProductos tr.lote-asignacion-multilote td:first-child {
+            border-left: 5px solid #dc3545 !important;
+        }
+
+    #tblLotesProductos tr.selected.lote-asignacion-parcial td {
+        background-color: #ffd8a8 !important;
+        font-weight: 600;
+    }
+
+    .custom-file-label::after {
+        content: "Examinar" !important;
+    }
+
+    /* Modal de Búsqueda Avanzada: Ancho Máximo Disponible y Responsivo */
+    #modalBusquedaAvanzada .modal-dialog {
+        max-width: 98vw !important;
+        width: 98vw !important;
+        margin: 10px auto !important;
+    }
+
+    @@media (max-width: 768px) {
+        #modalBusquedaAvanzada .modal-dialog {
+            max-width: 99vw !important;
+            width: 99vw !important;
+            margin: 5px auto !important;
+        }
+    }
+
+    /* Select2 container dentro del modal supera z-index del modal */
+    #modalBusquedaAvanzada .select2-container {
+        z-index: 2250 !important;
+    }
+
+    /* Dropdown Titular RS: ancho mínimo y texto en una sola línea */
+    #modalBusquedaAvanzada .select2-dropdown {
+        min-width: 400px;
+    }
+
+    #modalBusquedaAvanzada .select2-results__option {
+        white-space: nowrap;
+    }
+
+    #modalBusquedaAvanzada .select2-results__option--highlighted {
+        background-color: #1ab394 !important;
+    }
+
+    /* Awesome Bootstrap Checkbox en tabla búsqueda avanzada */
+    #modalBusquedaAvanzada th .checkbox,
+    #modalBusquedaAvanzada td .checkbox {
+        margin-bottom: 0;
+        padding-left: 20px;
+    }
+
+        #modalBusquedaAvanzada th .checkbox label,
+        #modalBusquedaAvanzada td .checkbox label {
+            height: 17px;
+            line-height: 17px;
+        }
+
+    /* Por vender = 0: fondo rojo */
+    .por-vender-cero,
+    #tblVentaDetalle tbody tr td input.por-vender-cero {
+        background-color: #ed5565 !important;
+        color: #fff !important;
+    }
+
+    /* Por vender que varió/cambió al actualizar: fondo celeste llamativo, texto contrastado y borde distintivo */
+    .por-vender-cambiado,
+    #tblVentaDetalle tbody tr td input.por-vender-cambiado {
+        background-color: #d1ecf1 !important;
+        color: #0c5460 !important;
+        border: 1.5px solid #17a2b8 !important;
+        font-weight: bold !important;
+        box-shadow: 0 0 5px rgba(23, 162, 184, 0.7) !important;
+    }
+
+    .por-vender-cambiado.por-vender-cero,
+    #tblVentaDetalle tbody tr td input.por-vender-cambiado.por-vender-cero {
+        background-color: #ed5565 !important;
+        color: #fff !important;
+        border: 2px solid #b71c1c !important;
+        box-shadow: 0 0 6px rgba(237, 85, 101, 0.8) !important;
+    }
+
+    #tblVentaDetalle tbody tr td.td-por-vender-cambiado {
+        background-color: #d1ecf1 !important;
+    }
+
+    /* Vencimiento próximo (< 1 año): fondo rojo */
+    .txtDetalleVencimiento.vencimiento-proximo {
+        background-color: #ed5565 !important;
+        color: #fff !important;
+        border-color: #ed5565 !important;
+    }
+
+    /* Artículo que ya no permite venta fraccionada (cargado en reapertura): fondo amarillo suave */
+    .fila-error-fraccionado {
+        background-color: #fdf2ce !important;
+    }
+
+        .fila-error-fraccionado td {
+            border-top-color: #f0e0a0 !important;
+        }
+
+    /* Ordenar columnas detalle */
+    .ordenar-col {
+        cursor: pointer;
+        user-select: none;
+    }
+
+        .ordenar-col:hover {
+            text-decoration: underline;
+        }
+
+        .ordenar-col::after {
+            content: " \f0dc";
+            font-family: FontAwesome;
+            font-size: 11px;
+            opacity: 0.6;
+            margin-left: 4px;
+        }
+
+        .ordenar-col.asc::after {
+            content: " \f0de";
+            opacity: 1;
+        }
+
+        .ordenar-col.desc::after {
+            content: " \f0dd";
+            opacity: 1;
+        }
+    /* Altura uniforme en controles de fila detalle */
+    .fila-detalle .form-control,
+    .fila-detalle .form-control-sm,
+    .fila-detalle .input-group-sm .form-control,
+    .fila-detalle .input-group-sm .btn,
+    .fila-detalle .btn-sm {
+        height: 31px !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+        font-size: 0.8rem;
+    }
+    /* Alineación de cantidad: Select al centro, Input a la derecha */
+    .txtDetalleCantidadSelect {
+        text-align: center !important;
+        text-align-last: center !important;
+    }
+
+    .txtDetalleCantidad {
+        text-align: right !important;
+    }
+    /* Alerta de Línea de Crédito excedida: fondo rojo suave y texto rojo */
+    .credito-excedido {
+        background-color: #f8d7da !important;
+        color: #721c24 !important;
+        border-color: #f5c6cb !important;
+        font-weight: bold !important;
+    }
+    /* Desactivar selección, arrastre y transiciones para conmutación instantánea y sin bloqueos de pestañas en Edge */
+    .tabs-pv,
+    .tabs-pv *,
+    .nav-pills-pv,
+    .nav-pills-pv * {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -ms-user-select: none !important;
+        -webkit-user-drag: none !important;
+    }
+
+        .tabs-pv .nav-link,
+        .nav-pills-pv .nav-link,
+        .tabs-container .tab-pane,
+        .tabs-container .tab-content {
+            transition: none !important;
+            animation: none !important;
+        }
+
+            .tabs-container .tab-pane:not(.active) {
+                display: none !important;
+                contain: strict !important;
+            }
+</style>
+<!-- MODAL BORRADORES LOCALES (Multi-Pestaña y Recuperación Offline/Crash) -->
+<div class="modal fade" id="modalBorradoresLocales" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title"><i class="fa fa-folder-open mr-1"></i> Ventas Guardadas Localmente (Borradores Multi-Pestaña)</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <div class="alert alert-info py-2 mb-0 flex-grow-1 mr-2" style="font-size:0.85rem;">
+                        <i class="fa fa-info-circle mr-1"></i> Estos borradores están guardados de forma segura en tu navegador. Puedes restaurar cualquier venta en esta pestaña o eliminar los borradores seleccionados.
+                    </div>
+                    <div class="btn-group">
+                        <button type="button" id="btnEliminarBorradoresSeleccionados" class="btn btn-sm btn-danger" disabled>
+                            <i class="fa fa-trash mr-1"></i> Eliminar Seleccionados (<span id="lblCountSeleccionados">0</span>)
+                        </button>
+                        <button type="button" id="btnEliminarTodosBorradores" class="btn btn-sm btn-outline-danger">
+                            <i class="fa fa-trash-alt mr-1"></i> Vaciar Todos
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="tblBorradoresLocales" class="table table-bordered table-hover table-striped mb-0">
+                        <thead style="background-color:#1ab394;color:white;">
+                            <tr>
+                                <th style="width:35px;text-align:center;">
+                                    <input type="checkbox" id="chkSeleccionarTodosBorradores" title="Seleccionar todos" />
+                                </th>
+                                <th style="width:40px;text-align:center;">#</th>
+                                <th style="width:160px;">Última Edición</th>
+                                <th>Cliente</th>
+                                <th style="width:90px;text-align:center;">Artículos</th>
+                                <th style="width:120px;text-align:right;">Monto Total</th>
+                                <th style="width:140px;">Almacén</th>
+                                <th style="width:140px;text-align:center;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i> Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<link href="~/css/plugins/select2/select2.min.css" rel="stylesheet" />
+<link href="~/css/plugins/awesome-bootstrap-checkbox/awesome-bootstrap-checkbox.css" rel="stylesheet" />
+<script src="~/js/plugins/select2/select2.full.min.js"></script>
+<script>
+    window.PUEDE_ANULAR_ENVIADO_WMS = @((ViewBag.PuedeAnularEnviadoWms ?? false).ToString().ToLower());
+    window.PUEDE_MODIFICAR_CONDICION_PAGO = @((ViewBag.PuedeModificarCondicionPago ?? false).ToString().ToLower());
+</script>
+<script src="~/js_modulos/PuntoVenta/pv.core.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/pv.catalogos.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/pv.cliente.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/pv.detalle.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/pv.hotkeys.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/pv.validaciones.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/pv.drafts.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/js_venta.js?v=1.0.0"></script>
+<script>
+    $(document).on("click", "#side-menu a[href]", function (e) {
+        var href = $(this).attr("href");
+        if (!href || href === "#" || href.indexOf("layouts.html") !== -1) return;
+        if ($(this).hasClass("js-logout")) return;
+
+        e.preventDefault();
+        var destino = href;
+
+        PV.confirmarNavegacion(function () {
+            window.location.href = destino;
+        });
+    });
+
+    $(window).on("beforeunload", function (e) {
+        if (PV.cambiosPendientes) {
+            e.returnValue = "";
+            return "";
+        }
+    });
+</script>
+

@@ -1,0 +1,273 @@
+@{
+    var debeCambiarClave = (ViewContext.HttpContext.Session.GetString("SESSION_DEBE_CAMBIAR") == "1");
+    var mantenerSesion = (ViewBag.MantenerSesionPuntoVenta == true || ViewContext.HttpContext.Session.GetString("SESSION_MANTENER_SESION") == "1");
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <title>.::. Corporación BioFarmacéutica - Punto de Venta .::.</title>
+  
+    <link href="~/Css/plugins/datapicker/datepicker3.css" rel="stylesheet">
+    <link href="~/Css/bootstrap.min.css" rel="stylesheet">
+    <link href="~/font-awesome/css/font-awesome.css" rel="stylesheet">
+    <link href="~/font-awesome/css/fontawesome-all.min.css" rel="stylesheet">
+
+    <!-- Toastr & Animate -->
+    <link href="~/Css/plugins/toastr/toastr.min.css" rel="stylesheet">
+    <link href="~/Css/animate.css" rel="stylesheet">
+    <link href="~/Css/style.css" rel="stylesheet">
+
+    <script>
+        window.MANTENER_SESION_PUNTO_VENTA = @(mantenerSesion.ToString().ToLower());
+        window.DEBE_CAMBIAR_CLAVE = @(debeCambiarClave.ToString().ToLower());
+    </script>
+
+    <!-- Scripts Principales -->
+    <script src="~/js/Bootstrap/jquery-3.1.1.min.js"></script>
+    <script src="~/js/jquery/jquery-migrate-3.0.0.js"></script>
+    <script>if (window.jQuery) { jQuery.migrateMute = true; jQuery.migrateTrace = false; }</script>
+    <script src="~/js/Bootstrap/popper.min.js"></script>
+    <script src="~/js/Bootstrap/bootstrap.js"></script>
+    <script src="~/js/plugins/metisMenu/jquery.metisMenu.js"></script>
+    <script src="~/js/plugins/slimscroll/jquery.slimscroll.min.js"></script>
+
+    <!-- Custom and plugin javascript -->
+    <script src="~/js/Bootstrap/inspinia.js"></script>
+    <script src="~/js/plugins/pace/pace.min.js"></script>
+
+    <!-- jQuery UI -->
+    <script src="~/Js/plugins/jquery-ui/jquery-ui.min.js"></script>
+
+    <!-- Toastr & Session -->
+    <script src="~/js/plugins/toastr/toastr.min.js"></script>
+    <script src="~/js/Bootstrap/jquery.session.js"></script>
+    <script src="~/js_modulos/masterpage/js_masterpage.js?v=@DateTime.Now.Ticks"></script>
+
+    <!-- DataTables -->
+    <link href="~/Css/plugins/dataTables/datatables.min.css" rel="stylesheet">
+    <script src="~/js/plugins/dataTables/datatables.min.js"></script>
+    <script src="~/js/plugins/dataTables/dataTables.bootstrap4.min.js"></script>
+
+    <!-- Alertify & SweetAlert2 -->
+    <link href="~/js/alertifyjs/css/alertify.css" rel="stylesheet" />
+    <script src="~/js/alertifyjs/alertify.js"></script>
+    <link href="~/js/sweetalert2-7.26.12/package/dist/sweetalert2.css" rel="stylesheet" />
+    <script src="~/js/sweetalert2-7.26.12/package/dist/sweetalert2.js"></script>
+
+    <script src="~/lib/vendor/moment.min.js"></script>
+    <script src="~/lib/vendor/datetime-moment.js"></script>
+
+    <link href="~/js/jquery-ui/themes/ui-lightness/jquery-ui.css" rel="stylesheet" />
+    <script src="~/js/jquery-ui/jquery-ui.min.js"></script>
+    <script src="~/js/Bootstrap/calendario.js"></script>
+
+    <!-- FileInput -->
+    <link href="~/Librerias/bootstrap-fileinput/css/fileinput.css" rel="stylesheet" />
+    <link href="~/Librerias/bootstrap-fileinput/themes/explorer-fas/theme.css" rel="stylesheet" />
+    <script src="~/Librerias/bootstrap-fileinput/js/plugins/piexif.js"></script>
+    <script src="~/Librerias/bootstrap-fileinput/js/plugins/sortable.js"></script>
+    <script src="~/Librerias/bootstrap-fileinput/js/fileinput.js"></script>
+    <script src="~/Librerias/bootstrap-fileinput/js/locales/es.js"></script>
+    <script src="~/js/plugins/datapicker/bootstrap-datepicker.js"></script>
+
+    <!-- Flatpickr -->
+    <link rel="stylesheet" href="~/lib/vendor/flatpickr.material_green.css">
+    <script src="~/lib/vendor/flatpickr.min.js"></script>
+    <script src="~/lib/vendor/flatpickr.es.js"></script>
+
+    <!-- SheetJS / XLSX & Export -->
+    <script src="~/lib/xlsx/xlsx.full.min.js"></script>
+    <script src="~/lib/vendor/FileSaver.min.js"></script>
+    <script src="~/lib/vendor/tableexport.min.js"></script>
+
+    <!-- Switchery -->
+    <link href="~/css/plugins/switchery/switchery.css" rel="stylesheet" />
+    <script src="~/js/plugins/switchery/switchery.js"></script>
+
+    <style>
+        .load {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3) url(/img/cargando12.gif) 50% 50% no-repeat;
+        }
+
+        body.loading {
+            overflow: hidden;
+        }
+
+        body.loading .load {
+            display: block;
+        }
+
+        @if (debeCambiarClave)
+        {
+            <text>
+            #page-wrapper {
+                margin: 0 0 0 0 !important;
+            }
+            .navbar-static-side {
+                display: none !important;
+            }
+            </text>
+        }
+
+        /* Estándar Corporativo CBF: Cabeceras de Tablas thead th */
+        table thead th, 
+        .table thead th, 
+        table.dataTable thead th, 
+        .swal2-container table thead th, 
+        .modal table thead th {
+            background-color: #1ab394 !important;
+            color: white !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="load"></div>
+    <div id="wrapper">
+        @if (!debeCambiarClave)
+        {
+            <nav class="navbar-default navbar-static-side" role="navigation">
+                <div class="sidebar-collapse">
+                    <ul class="nav metismenu" id="side-menu">
+                        <li class="nav-header">
+                            <div class="dropdown profile-element">
+                                <div style="display:flex;justify-content:center">
+                                    <img alt="image" class="rounded-circle" src="~/img/log_small3.png" style="text-align:center" />
+                                </div>
+                               
+                                <a data-toggle="dropdown" class="dropdown-toggle" href="#">
+                                    <div style="display:flex;justify-content:center">
+                                        <span class="block m-t-xs font-bold" id="txtusurio_menu"></span>
+                                    </div>
+                                    <div style="display:flex;justify-content:center">
+                                        <span class="text-muted text-xs block" id="txtperfil_menu"></span>
+                                    </div>
+                                </a>
+                                <div style="display:flex;justify-content:center">
+                                    <p class="small font-bold">
+                                        <span style="color:white"><i class="fa fa-circle text-navy"></i> En Línea</span>
+                                    </p>
+                                </div>
+                                <ul class="dropdown-menu animated fadeInRight m-t-xs">
+                                    <li><a class="dropdown-item" href="/Seguridad/Cambio_Clave"><i class="fa fa-key"></i> Cambiar Contraseña</a></li>
+                                    <li class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item js-logout" href="/Seguridad/Logout"><i class="fa fa-sign-out-alt"></i> Salir</a></li>
+                                </ul>
+                            </div>
+                            <div class="logo-element">
+                                CBF
+                            </div>
+                        </li>
+                   
+                        <!-- MENÚ PUNTO DE VENTA (Controlado dinámicamente por permisos de usuario) -->
+                        <li id="menu_padre_punto_venta" style="display:none">
+                            <a href="#"><i class="fa fa-cash-register"></i> <span class="nav-label">Punto de Venta</span><span class="fa arrow"></span></a>
+                            <ul class="nav nav-second-level">
+                                <li id="menu_venta" style="display:none">
+                                    <a href="@Url.Action("Venta", "PuntoVenta")"><i class="fa fa-angle-double-right"></i> Venta</a>
+                                </li>
+                                <li id="menu_punto_venta_clientes_bloqueados" style="display:none">
+                                    <a href="@Url.Action("ClienteBloqueado", "PuntoVenta")"><i class="fa fa-angle-double-right"></i> Clientes Bloqueados</a>
+                                </li>
+                                <li id="menu_punto_venta_articulos_fraccionados" style="display:none">
+                                    <a href="@Url.Action("ArticuloFraccionado", "PuntoVenta")"><i class="fa fa-angle-double-right"></i> Artíc Fraccionados</a>
+                                </li>
+                                <li id="menu_padre_punto_venta_reportes" style="display:none">
+                                    <a href="#"><i class="fa fa-angle-double-right"></i>Reportes<span class="fa arrow"></span></a>
+                                    <ul class="nav nav-third-level">
+                                        <li id="menu_punto_venta_stock_por_almacen" style="display:none">
+                                            <a href="@Url.Action("StockPorAlmacen", "PuntoVenta")"><i class="fa fa-angle-double-right"></i> Stock por Almacén</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- MENÚ SEGURIDAD (Controlado dinámicamente por permisos de usuario) -->
+                        <li id="menu_padre_seguridad" style="display:none">
+                            <a href="#"><i class="fa fa-shield-alt"></i> <span class="nav-label">Seguridad</span><span class="fa arrow"></span></a>
+                            <ul class="nav nav-second-level">
+                                <li id="menu_seguridad_cambio_clave" style="display:none">
+                                    <a href="@Url.Action("Cambio_Clave", "Seguridad")"><i class="fa fa-angle-double-right"></i> Cambio de Clave</a>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <li>
+                            <a href="/Seguridad/Logout" class="js-logout">
+                                <i class="fa fa-sign-out"></i>
+                                <span class="nav-label"> Salir</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+        }
+
+        <div id="page-wrapper" class="gray-bg dashbard-1">
+            <div class="row border-bottom">
+                <nav class="navbar navbar-static-top" role="navigation" style="margin-bottom: 0">
+                    @if (!debeCambiarClave)
+                    {
+                        <div class="navbar-header">
+                            <a class="navbar-minimalize minimalize-styl-2 btn btn-primary" href="#"><i class="fa fa-bars"></i></a>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="navbar-header" style="padding: 15px 20px;">
+                            <span class="badge badge-warning" style="font-size: 13px; padding: 6px 12px; background-color: #f8ac59; color: white;">
+                                <i class="fa fa-lock"></i> Módulos Bloqueados: Cambio Obligatorio de Contraseña
+                            </span>
+                        </div>
+                    }
+                    <ul class="nav navbar-top-links navbar-right">
+                        <li style="padding: 20px 10px 20px 0">
+                            <i class="fa fa-user-circle-o"></i> <span class="m-r-sm text-muted welcome-message" id="nombre_completo_menu" style="font-weight:bold"></span>
+                        </li>
+                        @if (!debeCambiarClave)
+                        {
+                            <li>
+                                <a href="@Url.Action("Cambio_Clave", "Seguridad")" style="font-weight:bold" title="Cambiar Contraseña">
+                                    <i class="fa fa-key"></i> Cambiar Clave
+                                </a>
+                            </li>
+                        }
+                        <li>
+                            <a href="/Seguridad/Logout" class="js-logout" style="font-weight:bold">
+                                <i class="fa fa-sign-out"></i> Salir
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+
+            <div>
+                <section id="contenido-vista">
+                    @RenderBody()
+                </section>
+            </div>
+
+            <div class="footer">
+                <div class="float-right">
+                    <strong>Punto de Venta Independiente</strong>
+                </div>
+                <div>
+                    <strong>.::. Corporación BioFarmacéutica .::.</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,122 @@
+@{
+    ViewData["Title"] = "Cambio de Contraseña";
+    Layout = "~/Views/Shared/MasterPage.cshtml";
+    var debeCambiar = (ViewContext.HttpContext.Session.GetString("SESSION_DEBE_CAMBIAR") == "1");
+}
+
+<div class="row wrapper border-bottom white-bg page-heading">
+    <div class="col-lg-10">
+        <h2>Cambio de Contraseña</h2>
+        <ol class="breadcrumb">
+            @if (!debeCambiar)
+            {
+                <li class="breadcrumb-item">
+                    <a href="/PuntoVenta/Venta">Principal</a>
+                </li>
+            }
+            <li class="breadcrumb-item">
+                <a>Seguridad</a>
+            </li>
+            <li class="breadcrumb-item active">
+                <strong>Cambio de Contraseña</strong>
+            </li>
+        </ol>
+    </div>
+    <div class="col-lg-2">
+    </div>
+</div>
+<br />
+<div class="wrapper wrapper-content animated fadeInRight">
+    <div class="row">
+        <div class="col-lg-3"></div>
+        <div class="col-lg-6">
+            @if (debeCambiar)
+            {
+                <div class="alert alert-warning" style="border-left: 5px solid #f8ac59; background-color: #fcf8e3; color: #8a6d3b;">
+                    <h4><i class="fa fa-exclamation-triangle"></i> <b>Cambio Obligatorio de Contraseña</b></h4>
+                    <p style="margin-bottom: 0;">Su contraseña ha caducado. Por motivos de seguridad de <b>CBF</b>, debe definir una nueva contraseña para poder desbloquear el sistema y acceder a los módulos de Punto de Venta.</p>
+                </div>
+            }
+            <div class="ibox">
+                <div class="ibox-title" style="background-color: #1ab394; color: white;">
+                    <h5 style="color: white;"><i class="fa fa-key"></i> Actualización de Contraseña</h5>
+                </div>
+                <div class="ibox-content">
+                    <div class="row">
+                        <div class="col-sm-5 b-r text-center">
+                            <div class="profile-image m-t-md">
+                                <img src="~/img/seguridad.gif" class="rounded-circle circle-border m-b-md" style="width: 100px; height: 100px;" alt="seguridad">
+                            </div>
+                            <div class="profile-info m-t-sm">
+                                <h4 class="font-bold text-navy" id="txtnombre_completo"></h4>
+                                <p class="text-muted" id="txtperfil"></p>
+                                <p class="text-muted" id="txtcorreo" style="font-size: 12px;"></p>
+                                <p class="small font-bold">
+                                    <span class="badge badge-primary"><i class="fa fa-circle"></i> En Línea</span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-sm-7">
+                            <form role="form" id="formCambioClave">
+                                <div class="form-group">
+                                    <label><b>Contraseña Actual:</b></label>
+                                    <div class="input-group">
+                                        <input id="txtclaveactual" class="form-control" type="password" placeholder="Ingrese Contraseña Actual" autocomplete="off">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-outline-secondary btnTogglePass" type="button" data-target="txtclaveactual">👁</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label><b>Nueva Contraseña:</b></label>
+                                    <div class="input-group">
+                                        <input id="txtnuevacontrasena1" class="form-control" type="password" placeholder="Mín. 8 caracteres (A-Z, a-z, 0-9, @@#$)" autocomplete="new-password">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-outline-secondary btnTogglePass" type="button" data-target="txtnuevacontrasena1">👁</button>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Debe contener mayúscula, minúscula, número y símbolo.</small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label><b>Confirmar Nueva Contraseña:</b></label>
+                                    <div class="input-group">
+                                        <input id="txtnuevacontrasena2" class="form-control" type="password" placeholder="Repita la nueva contraseña" autocomplete="new-password">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-outline-secondary btnTogglePass" type="button" data-target="txtnuevacontrasena2">👁</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr />
+                                <div class="text-right">
+                                    <button id="btn_guardar_cambio_clave" type="button" class="btn btn-primary" style="background-color:#1ab394; border-color:#1ab394;">
+                                        <i class="fa fa-save"></i> Guardar Contraseña
+                                    </button>
+                                    @if (!debeCambiar)
+                                    {
+                                        <a id="btn_cancelar_cambio_clave" href="/PuntoVenta/Venta" class="btn btn-default">
+                                            Cancelar
+                                        </a>
+                                    }
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3"></div>
+    </div>
+</div>
+
+<script>
+    if (sessionStorage.getItem('DEBE_CAMBIAR') === '1') {
+        const sideNav = document.querySelector('.navbar-static-side');
+        if (sideNav) sideNav.style.display = 'none';
+        const btnCancel = document.getElementById('btn_cancelar_cambio_clave');
+        if (btnCancel) btnCancel.style.display = 'none';
+    }
+</script>
+<script src="~/js_modulos/seguridad/js_cambio_clave.js?v=@DateTime.Now.Ticks"></script>

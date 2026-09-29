@@ -1,0 +1,189 @@
+@{
+    ViewData["Title"] = "Punto de Venta - Acceso";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head runat="server">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>.::. Corporación BioFarmacéutica - Punto de Venta .::.</title>
+
+    <link href="~/Css/bootstrap.min.css?v=1.0.0" rel="stylesheet" />
+    <link href="~/Css/Login/StyleLogin2.css?v=12.0.0" rel="stylesheet" />
+
+    <script src="~/js/jquery/jquery-3.4.1.js?v=1.0.0"></script>
+    <script src="~/js/sweetalert2-7.26.12/package/dist/sweetalert2.js?v=1.0.0"></script>
+    <script src="~/Js/Bootstrap/jquery.session.js?v=1.0.0"></script>
+    <link href="~/js/sweetalert2-7.26.12/package/dist/sweetalert2.css?v=1.0.0" rel="stylesheet" />
+    <script src="~/js_modulos/seguridad/js_login_pv.js?v=@DateTime.Now.Ticks"></script>
+</head>
+
+<body>
+    <div class="load"></div>
+
+    <div class="login-wrapper">
+
+        <!-- IZQUIERDA: CARRUSEL -->
+        <section class="login-carousel" aria-label="Carrusel">
+            <div class="carousel">
+
+                <div class="slides">
+                    <div class="slide is-active" style="background-image:url('/img/4.jpg')"></div>
+                    <div class="slide" style="background-image:url('/img/5.jpg')"></div>
+                    <div class="slide" style="background-image:url('/img/6.jpg')"></div>          
+                    <div class="slide" style="background-image:url('/img/9.jpg')"></div>
+                    <div class="slide" style="background-image:url('/img/fond5666.jpg')"></div>
+                </div>
+
+                <div class="carousel-overlay">
+                    <h2>Corporación BioFarmacéutica</h2>
+                    <p>Punto de Venta Independiente • Rápido • Confiable</p>
+                </div>
+
+                <!-- Flechas -->
+                <button class="carousel-btn prev" type="button" aria-label="Anterior">
+                    <span class="chev">‹</span>
+                </button>
+                <button class="carousel-btn next" type="button" aria-label="Siguiente">
+                    <span class="chev">›</span>
+                </button>
+
+                <!-- Dots -->
+                <div class="carousel-dots" aria-label="Indicadores">
+                    <button class="dot is-active" type="button" data-index="0" aria-label="Imagen 1"></button>
+                    <button class="dot" type="button" data-index="1" aria-label="Imagen 2"></button>
+                    <button class="dot" type="button" data-index="2" aria-label="Imagen 3"></button>
+                    <button class="dot" type="button" data-index="3" aria-label="Imagen 4"></button>
+                    <button class="dot" type="button" data-index="4" aria-label="Imagen 5"></button>
+                </div>
+            </div>
+        </section>
+
+        <!-- DERECHA: PANEL DE LOGIN -->
+        <section class="login-panel">
+            <div class="logo-wrap">
+                <div class="login-box">
+
+                    <img src="~/img/seguridad.gif" class="avatar" />
+                    <br /><br />
+
+                    <div style="display:flex;justify-content:center">
+                        <img src="~/img/logo_cbf.png" class="img-responsive" style="width:270px;height:60px;" />
+                    </div>
+                    <div style="text-align:center; margin-top:8px; margin-bottom:15px;">
+                        <span style="font-weight:bold; color:#1ab394; font-size:15px; letter-spacing:1px;">PUNTO DE VENTA</span>
+                    </div>
+
+                    <!-- Honeypot -->
+                    <div aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden">
+                        <input type="text" name="username" tabindex="-1" autocomplete="username" />
+                        <input type="password" name="password" tabindex="-1" autocomplete="current-password" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input id="txta" type="text" class="form-control" placeholder="Ingrese Usuario" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <div class="password-wrap">
+                            <input id="txtb"
+                                   type="password"
+                                   class="form-control"
+                                   placeholder="Ingrese Contraseña"
+                                   autocomplete="new-password" />
+                            <button class="pass-toggle" id="btnTogglePass" type="button" aria-label="Mostrar/Ocultar">👁</button>
+                        </div>
+                    </div>
+                    <button id="btningresar" type="button" class="btn-login">Ingresar a Ventas</button>
+                    <br /><br />
+                    <div class="login-footer">
+                        <a href="https://cbf.com.pe/" target="_blank" rel="noreferrer">www.cbf.com.pe</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</body>
+</html>
+
+<script>
+    (function () {
+        const txta = document.getElementById("txta");
+        if (txta) txta.focus();
+
+        const txtClave = document.getElementById("txtb");
+        const btnTogglePass = document.getElementById("btnTogglePass");
+        btnTogglePass?.addEventListener("click", function () {
+            const isPass = txtClave.getAttribute("type") === "password";
+            txtClave.setAttribute("type", isPass ? "text" : "password");
+            btnTogglePass.textContent = isPass ? "🙈" : "👁";
+        });
+
+        // Carrusel
+        const slides = Array.from(document.querySelectorAll(".slide"));
+        const dots = Array.from(document.querySelectorAll(".dot"));
+        const prevBtn = document.querySelector(".carousel-btn.prev");
+        const nextBtn = document.querySelector(".carousel-btn.next");
+        const carousel = document.querySelector(".carousel");
+
+        let idx = 0;
+        let timer = null;
+        const intervalMs = 2500;
+
+        function show(i) {
+            idx = (i + slides.length) % slides.length;
+            slides.forEach((s, k) => s.classList.toggle("is-active", k === idx));
+            dots.forEach((d, k) => d.classList.toggle("is-active", k === idx));
+        }
+
+        function next() { show(idx + 1); }
+        function prev() { show(idx - 1); }
+
+        nextBtn?.addEventListener("click", next);
+        prevBtn?.addEventListener("click", prev);
+
+        dots.forEach(d => d.addEventListener("click", () => show(parseInt(d.dataset.index, 10))));
+
+        function start() { stop(); timer = setInterval(next, intervalMs); }
+        function stop() { if (timer) clearInterval(timer); timer = null; }
+
+        carousel?.addEventListener("mouseenter", stop);
+        carousel?.addEventListener("mouseleave", start);
+
+        show(0);
+        start();
+    })();
+</script>
+
+<style>
+    .load {
+        display: none;
+        position: fixed;
+        z-index: 9999;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        background: rgba(190, 190, 190, 0.4) url(/img/spinner.gif) 50% 50% no-repeat;
+        opacity: 0.9;
+    } 
+
+    body.loading {
+        overflow: hidden;
+    }
+
+    body.loading .load {
+        display: block;
+    }
+
+    input[type="password"]::-ms-reveal,
+    input[type="password"]::-ms-clear {
+        display: none !important;
+    }
+</style>

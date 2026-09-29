@@ -1,0 +1,263 @@
+@{
+    ViewData["Title"] = "Clientes Bloqueados";
+    Layout = "~/Views/Shared/MasterPage.cshtml";
+}
+<style>
+    .ui-autocomplete {
+        z-index: 999999 !important;
+        max-height: 250px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        white-space: nowrap;
+    }
+    .ui-menu-item-wrapper {
+        padding: 8px 12px !important;
+        font-size: 14px;
+        min-height: 35px;
+        line-height: 20px;
+        white-space: nowrap;
+    }
+    .ui-state-default,
+    .ui-state-hover,
+    .ui-state-focus,
+    .ui-state-active,
+    .ui-menu-item:hover > .ui-menu-item-wrapper,
+    .ui-menu-item:focus > .ui-menu-item-wrapper {
+        background: #1ab394 !important;
+        border-color: #1ab394 !important;
+        color: white !important;
+    }
+    .ui-state-default span,
+    .ui-state-hover span,
+    .ui-state-focus span,
+    .ui-state-active span,
+    .ui-menu-item:hover > .ui-menu-item-wrapper span,
+    .ui-menu-item:focus > .ui-menu-item-wrapper span {
+        color: white !important;
+    }
+    .input-clear .form-control { border-right: 0; }
+    .input-clear .input-group-append .btn {
+        border-left: 0;
+        border-color: #e5e6e7;
+        background-color: #fff;
+        color: #6c757d;
+    }
+    .input-clear:focus-within .input-group-append .btn { border-color: #1ab394; }
+    .input-clear .input-group-append .btn:hover {
+        color: #6c757d;
+        background-color: #fff;
+        border-color: #e5e6e7;
+    }
+    .input-clear .input-group-append .btn,
+    .input-clear .input-group-append .btn:focus,
+    .input-clear .input-group-append .btn:active,
+    .input-clear .input-group-append .btn:not(:disabled):not(.disabled):active {
+        outline: none !important;
+        box-shadow: none !important;
+        background-image: none !important;
+    }
+    .error_campo_vacio { border: 1px solid #ed5565 !important; }
+    #fileImportarExcel::-webkit-file-upload-button { display: none; }
+    #fileImportarExcel::file-selector-button { display: none; }
+    #tblVistaPreviaExcel thead th { background-color: #1ab394 !important; color: white !important; }
+    #tabla thead th { background-color: #1ab394 !important; color: white !important; }
+    .swal2-popup table thead,
+    .swal2-popup table thead th { background-color: #1ab394 !important; color: white !important; }
+</style>
+
+<div class="row wrapper border-bottom white-bg page-heading">
+    <div class="col-lg-10">
+        <h2 class="titulo-pagina">@ViewData["Title"]</h2>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="../Seguridad/Principal">Principal</a></li>
+            <li class="breadcrumb-item"><a>Punto de Venta</a></li>
+            <li class="breadcrumb-item active"><strong>Clientes Bloqueados</strong></li>
+        </ol>
+    </div>
+</div>
+
+<br />
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="ibox">
+            <div class="ibox-content">
+
+                <div class="d-flex justify-content-end align-items-center mb-2">
+                    <img id="imgmas" src="../img/mas.png" style="width:20px;height:20px" />
+                    <strong id="btnnuevo" style="cursor:pointer; margin-left:5px;">NUEVO</strong>
+                </div>
+
+                <hr />
+
+                <div class="row g-2 align-items-end">
+
+                    <div class="col-12 col-sm-6 col-md-5 col-lg-4">
+                        <label>Cliente (RUC o Nombre)</label>
+                        <div class="input-group input-group-sm input-clear">
+                            <input type="text" id="txtBuscarCliente" class="form-control" autocomplete="off" maxlength="200" placeholder="Buscar por RUC o nombre..." />
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary btn-clear-input" title="Limpiar" tabindex="-1">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-md-3 col-lg-2">
+                        <label>Estado</label>
+                        <select id="ddlEstado" class="form-control form-control-sm">
+                            <option value="1" selected>Cliente Bloqueado</option>
+                            <option value="0">Cliente Desbloqueado</option>
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-4 col-lg-2">
+                        <label>&nbsp;</label>
+                        <button id="btnbuscar" class="btn btn-block btn-sm" style="background-color:#1ab394;color:white;">
+                            <i class="fa fa-search"></i> Buscar
+                        </button>
+                    </div>
+
+                    <div class="col-12 col-md-4 col-lg-2">
+                        <label>&nbsp;</label>
+                        <button id="btnexportar" class="btn btn-block btn-sm btn-warning">
+                            <i class="fa fa-file-excel-o"></i> Exportar
+                        </button>
+                    </div>
+
+                    <div class="col-12 col-md-4 col-lg-2">
+                        <label>&nbsp;</label>
+                        <button id="btnimportar" class="btn btn-block btn-sm" style="background-color:#5dade2;color:white;">
+                            <i class="fa fa-file-excel"></i> Importar
+                        </button>
+                    </div>
+
+                </div>
+
+                <br />
+                <hr />
+
+                <div class="row">
+                    <div id="contenedorTabla" class="table-responsive" style="display:none;">
+                        <table id="tabla" class="table table-hover table-striped compact nowrap" style="width:100%;">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo / Editar -->
+<div class="modal fade" id="modalClienteBloqueado" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h4 class="modal-title" id="tituloModal"><strong>Nuevo Cliente Bloqueado</strong></h4>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+
+            <div class="modal-body">
+
+                <input type="hidden" id="txtIdClienteBloqueado" value="0" />
+
+                <div class="row">
+
+                    <div class="col-md-4">
+                        <label>Cliente (RUC, Código o Nombre)</label>
+                        <div class="input-group input-group-sm input-clear">
+                            <input type="text" id="txtModalCliente" class="form-control autocomplete-cliente-modal" autocomplete="off" maxlength="200" placeholder="Buscar por RUC, código o nombre..." />
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary btn-clear-input btn-clear-modal-cliente" title="Limpiar" tabindex="-1">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label>Nombre</label>
+                        <input type="text" id="txtModalNombre" class="form-control form-control-sm" readonly />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label>RUC</label>
+                        <input type="text" id="txtModalRuc" class="form-control form-control-sm" readonly />
+                    </div>
+
+                </div>
+
+                <div class="row mt-3">
+
+                    <div class="col-12">
+                        <label>Motivo del Bloqueo</label>
+                        <textarea id="txtModalMotivo" class="form-control" rows="3" maxlength="500" style="resize:none;"></textarea>
+                    </div>
+
+                    <div class="col-12" id="divModalEstado" style="display:none;">
+                        <label>Estado</label>
+                        <select id="ddlModalEstado" class="form-control form-control-sm">
+                            <option value="true">Cliente Bloqueado</option>
+                            <option value="false">Cliente Desbloqueado</option>
+                        </select>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="btnGuardar"><i class="fa fa-save"></i> Guardar</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times"></i> Cerrar</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Modal Importar Excel -->
+<div class="modal fade" id="modalImportarExcel" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-md" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title"><i class="fa fa-file-excel"></i> Importar Clientes Bloqueados</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Seleccionar archivo Excel:</label>
+                    <input type="file" class="form-control" id="fileImportarExcel" accept=".xls,.xlsx,.xlsm">
+                    <small class="form-text text-muted">Columna A = RUC, Columna B = Nombre (opcional), Columna C = Motivo del bloqueo</small>
+                </div>
+                <div class="form-group" id="divSeleccionHoja" style="display:none">
+                    <label>Seleccionar hoja:</label>
+                    <select class="form-control form-control-sm" id="ddlImportarHoja">
+                        <option value="">-- Seleccionar hoja --</option>
+                    </select>
+                </div>
+                    <div id="divVistaPrevia" style="display:none">
+                    <label>Vista previa:</label>
+                    <div style="max-height:350px;overflow-y:auto;border:1px solid #ddd;border-radius:4px">
+                        <table class="table table-sm table-bordered mb-0" id="tblVistaPreviaExcel">
+                            <thead style="background-color:#1ab394;color:white;"><tr><th>Fila</th><th>RUC</th><th>Motivo</th><th>Válido</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted" id="lblTotalFilasExcel"></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm" id="btnCargarExcel" style="background-color:#5dade2;border-color:#5dade2;color:white;"><i class="fa fa-file-excel"></i> Importar</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal"><i class="fa fa-times"></i> Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="~/js_modulos/PuntoVenta/js_cliente_bloqueado.js?v=1.0.4"></script>

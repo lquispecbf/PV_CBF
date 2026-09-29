@@ -1,0 +1,172 @@
+@{
+    ViewData["Title"] = "Stock por Almacén";
+    Layout = "~/Views/Shared/MasterPage.cshtml";
+}
+<div class="row wrapper border-bottom white-bg page-heading">
+    <div class="col-lg-10">
+        <h2 class="titulo-pagina">
+            @ViewData["Title"]
+        </h2>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="../Seguridad/Principal">Principal</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a>Punto de Venta</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a>Reportes</a>
+            </li>
+            <li class="breadcrumb-item active">
+                <strong>Stock por Almacén</strong>
+            </li>
+        </ol>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="ibox">
+            <div class="ibox-content">
+                <div class="row mb-2 filtros-busqueda align-items-end">
+
+                    <div class="col-12 col-md-6 col-lg-3 mb-2">
+                        <label>Almacén:</label>
+                        <select class="form-control form-control-sm" id="ddlStockAlmacen">
+                            <option value=""><< Seleccionar >></option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-6 col-lg-3 mb-2">
+                        <label>Lista de Precios:</label>
+                        <select class="form-control form-control-sm" id="ddlStockListaPrecio">
+                            <option value=""><< Seleccionar >></option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-6 col-lg-3 mb-2">
+                        <label>Búsqueda:</label>
+                        <div class="input-group input-group-sm input-clear">
+                            <input type="text"
+                                   class="form-control"
+                                   id="txtStockBusqueda"
+                                   placeholder="Código o descripción..."
+                                   autocomplete="off" />
+                            <div class="input-group-append">
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-clear-input"
+                                        title="Limpiar"
+                                        tabindex="-1"
+                                        aria-label="Limpiar búsqueda">
+                                    <i class="fa fa-times" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-6 col-lg-1 mb-2">
+                        <button id="btnStockBuscar"
+                                type="button"
+                                class="btn btn-sm w-100 btn-custom btn-buscar-tab"
+                                style="height: calc(1.8125rem + 2px);">
+                            <i class="fa fa-magnifying-glass"></i> Buscar
+                        </button>
+                    </div>
+
+                    <div class="col-12 col-md-6 col-lg-1 mb-2">
+                        <button id="btnStockExportar"
+                                type="button"
+                                class="btn btn-sm w-100"
+                                style="background-color:#f3af5e;color:#fff;border-color:#f3af5e;height: calc(1.8125rem + 2px);">
+                            <i class="fa fa-file-excel"></i> Exportar
+                        </button>
+                    </div>
+
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-12">
+                        <div class="table-responsive">
+                            <table id="tblStockPorAlmacen" class="table table-bordered table-hover table-striped display nowrap" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Descripción</th>
+                                        <th>UMD</th>
+                                        <th>Laboratorio</th>
+                                        <th>Precio</th>
+                                        <th>Precio Caja</th>
+                                        <th>Stock</th>
+                                        <th>Fec. Venc.</th>
+                                        <th>Principio Activo</th>
+                                        <th>Estado SKU</th>
+                                        <th>Observación</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-custom {
+        background-color: #1ab394;
+        color: white;
+        border-color: #1ab394;
+    }
+
+    #tblStockPorAlmacen thead th {
+        background-color: #1ab394;
+        color: white;
+        text-align: center;
+    }
+
+    .form-control-sm,
+    .form-control-sm select {
+        height: 32px !important;
+        line-height: 1.5 !important;
+    }
+
+    .input-clear .form-control {
+        border-right: 0;
+    }
+
+    .input-clear .input-group-append .btn {
+        border-left: 0;
+        border-color: #e5e6e7;
+        background-color: #fff;
+        color: #6c757d;
+    }
+
+    .input-clear:focus-within .input-group-append .btn {
+        border-color: #1ab394;
+    }
+
+    .input-clear .input-group-append .btn:hover {
+        color: #6c757d;
+        background-color: #fff;
+        border-color: #e5e6e7;
+    }
+
+    .input-clear:focus-within .input-group-append .btn:hover {
+        border-color: #1ab394;
+        background-color: #fff;
+        color: #6c757d;
+    }
+
+    .input-clear .input-group-append .btn,
+    .input-clear .input-group-append .btn:focus,
+    .input-clear .input-group-append .btn:active,
+    .input-clear .input-group-append .btn:not(:disabled):not(.disabled):active {
+        outline: none !important;
+        box-shadow: none !important;
+        background-image: none !important;
+    }
+</style>
+<script src="~/js_modulos/PuntoVenta/pv.core.js?v=11.0.1"></script>
+<script src="~/js_modulos/PuntoVenta/js_stock_por_almacen.js?v=1.0.0"></script>
