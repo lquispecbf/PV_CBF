@@ -518,6 +518,10 @@ PV.DraftManager = (function () {
             });
         }
 
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            try { document.activeElement.blur(); } catch (e) { }
+        }
+        $("#modalBorradoresLocales").removeAttr("aria-hidden").attr("aria-modal", "true");
         $("#modalBorradoresLocales").modal("show");
     }
 
@@ -549,6 +553,9 @@ PV.DraftManager = (function () {
                 }
             }
 
+            if (document.activeElement && typeof document.activeElement.blur === "function") {
+                try { document.activeElement.blur(); } catch (e) { }
+            }
             Swal.fire({
                 title: "Venta pendiente detectada",
                 html: `Se encontró ${tipoTexto} en esta pestaña:<br><br>
@@ -587,6 +594,9 @@ PV.DraftManager = (function () {
         // Abrir modal de borradores
         $(document).on("click", "#btnBorradoresLocales", function (e) {
             e.preventDefault();
+            if (document.activeElement && typeof document.activeElement.blur === "function") {
+                try { document.activeElement.blur(); } catch (err) { }
+            }
             abrirModalBorradores();
         });
 
@@ -605,12 +615,18 @@ PV.DraftManager = (function () {
         // Botón Cargar Borrador
         $(document).on("click", ".btn-restaurar-borrador", function () {
             const draftId = $(this).data("draft-id");
+            if (document.activeElement && typeof document.activeElement.blur === "function") {
+                try { document.activeElement.blur(); } catch (err) { }
+            }
             restaurarBorrador(draftId);
         });
 
         // Botón Eliminar Borrador Individual
         $(document).on("click", ".btn-eliminar-borrador", function () {
             const draftId = $(this).data("draft-id");
+            if (document.activeElement && typeof document.activeElement.blur === "function") {
+                try { document.activeElement.blur(); } catch (err) { }
+            }
             Swal.fire({
                 title: "¿Eliminar borrador?",
                 text: "Esta acción no se puede deshacer.",
@@ -638,6 +654,9 @@ PV.DraftManager = (function () {
 
             if (ids.length === 0) return;
 
+            if (document.activeElement && typeof document.activeElement.blur === "function") {
+                try { document.activeElement.blur(); } catch (err) { }
+            }
             Swal.fire({
                 title: `¿Eliminar ${ids.length} borrador(es) seleccionado(s)?`,
                 text: "Esta acción no se puede deshacer.",
@@ -661,6 +680,9 @@ PV.DraftManager = (function () {
             const total = listarBorradores().length;
             if (total === 0) return;
 
+            if (document.activeElement && typeof document.activeElement.blur === "function") {
+                try { document.activeElement.blur(); } catch (err) { }
+            }
             Swal.fire({
                 title: "¿Vaciar TODOS los borradores?",
                 text: `Se eliminarán los ${total} borradores locales de este navegador. Esta acción no se puede deshacer.`,

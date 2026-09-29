@@ -1,3 +1,33 @@
+// Interceptor global para SweetAlert2 y SweetAlert para evitar advertencia WAI-ARIA (aria-hidden en elemento con foco)
+(function () {
+    function interceptSwal() {
+        if (window.Swal && typeof window.Swal.fire === "function" && !window.Swal._ariaSafeWrapped) {
+            const _origFire = window.Swal.fire;
+            window.Swal.fire = function () {
+                if (document.activeElement && typeof document.activeElement.blur === "function") {
+                    try { document.activeElement.blur(); } catch (e) { }
+                }
+                return _origFire.apply(this, arguments);
+            };
+            window.Swal._ariaSafeWrapped = true;
+        }
+        if (window.swal && typeof window.swal === "function" && !window.swal._ariaSafeWrapped) {
+            const _origSwal = window.swal;
+            window.swal = function () {
+                if (document.activeElement && typeof document.activeElement.blur === "function") {
+                    try { document.activeElement.blur(); } catch (e) { }
+                }
+                return _origSwal.apply(this, arguments);
+            };
+            window.swal._ariaSafeWrapped = true;
+        }
+    }
+    interceptSwal();
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", interceptSwal);
+    }
+})();
+
 $(document).ready(function () {
 
     // Mover modales a la raíz del body para evitar conflicto WAI-ARIA (aria-hidden en #wrapper)
@@ -6,6 +36,22 @@ $(document).ready(function () {
         if (!$(this).parent().is('body')) {
             $(this).appendTo('body');
         }
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            try { document.activeElement.blur(); } catch (e) { }
+        }
+        $(this).removeAttr('aria-hidden').attr('aria-modal', 'true');
+    });
+    $(document).on('shown.bs.modal', '.modal', function () {
+        $(this).removeAttr('aria-hidden').attr('aria-modal', 'true');
+    });
+    $(document).on('hide.bs.modal', '.modal', function () {
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            try { document.activeElement.blur(); } catch (e) { }
+        }
+    });
+    $(document).on('hidden.bs.modal', '.modal', function () {
+        $(this).attr('aria-hidden', 'true').removeAttr('aria-modal');
+        $('#wrapper').removeAttr('aria-hidden');
     });
 
     const SESSION_EVENT_KEY = "CBF_PV_SESSION_EVENT";

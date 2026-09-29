@@ -100,12 +100,18 @@ PV.Detalle = (function () {
 
     function asegurarFocoEnCantidad($fila) {
         if (!$fila || !$fila.length || _modoLectura) return;
-        if ($(".modal:visible").length > 0 || $(".swal2-container:visible").length > 0) return;
 
         setTimeout(function () {
-            if ($(".modal:visible").length > 0 || $(".swal2-container:visible").length > 0) return;
             enfocarCantidadFila($fila);
-        }, 30);
+        }, 50);
+
+        setTimeout(function () {
+            enfocarCantidadFila($fila);
+        }, 150);
+
+        setTimeout(function () {
+            enfocarCantidadFila($fila);
+        }, 300);
     }
 
     function navegarGridVertical($elementoActual, direccion) {

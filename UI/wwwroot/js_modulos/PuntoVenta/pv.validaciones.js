@@ -5,11 +5,13 @@ PV.Validaciones = (function () {
     function inicializar() {
         $("#btnVentaGuardar").on("click", function (e) {
             e.preventDefault();
+            $(this).blur();
             guardarVenta();
         });
 
         $("#btnVentaBorrador").on("click", function (e) {
             e.preventDefault();
+            $(this).blur();
             guardarBorrador();
         });
 
@@ -345,6 +347,7 @@ PV.Validaciones = (function () {
             SEND_PHONE: ($("#txtLogisticaTelefono").val() || "").replace(/\D/g, "").substring(0, 20),
             SEND_PLACE: ($("#txtLogisticaLugarEnvio").val() || "").trim().substring(0, 250),
             DOCENTRY: parseInt($("#hdfDocEntry").val()) || 0,
+            DOCENTRY_SAP: parseInt($("#hdfDocEntrySap").val()) || null,
             DOCSTATUS: docstatus || "Z",
             DOCSTATUS_ORIGINAL: $("#hdfDocStatusOriginal").val() || "",
             DETALLE: detalle,
@@ -462,6 +465,7 @@ PV.Validaciones = (function () {
 
     async function guardarVenta() {
         if (!PV.Utils.puedeInteractuar()) return;
+        if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
 
         var bloqueado = await revalidarClienteBloqueado();
         if (bloqueado) {
@@ -586,6 +590,7 @@ PV.Validaciones = (function () {
 
     async function guardarBorrador() {
         if (!PV.Utils.puedeInteractuar()) return;
+        if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
 
         var bloqueado = await revalidarClienteBloqueado();
         if (bloqueado) {

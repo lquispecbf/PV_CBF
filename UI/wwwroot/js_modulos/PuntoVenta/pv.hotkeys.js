@@ -254,6 +254,7 @@ PV.Hotkeys = (function () {
                     $("#tblBusquedaAvanzada").DataTable().destroy();
                 }
             } catch (e) { }
+            $("#tblBusquedaAvanzada tbody").empty();
             $("#chkSeleccionarTodosAvanzada").prop("checked", false);
             _seleccionAvanzadaCodigos = [];
             _bloqueoAperturaBusqueda = false;
@@ -520,11 +521,16 @@ PV.Hotkeys = (function () {
             }
         } catch (e) { }
         $("#tblBusquedaAvanzada tbody").empty();
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+        }
+        $("#modalBusquedaAvanzada").removeAttr("aria-hidden").attr("aria-modal", "true");
         $("#modalBusquedaAvanzada").modal("show");
 
         $("#modalBusquedaAvanzada").off("shown.bs.modal.initBusqueda").on("shown.bs.modal.initBusqueda", function () {
             _bloqueoAperturaBusqueda = false;
             cargarTitularesRs();
+            $("#modalBusquedaAvanzada").removeAttr("aria-hidden").attr("aria-modal", "true");
             $("#txtFiltroDescripcion").focus();
         });
 
@@ -882,27 +888,26 @@ PV.Hotkeys = (function () {
                     $("#modalBusquedaAvanzada").off("hidden.bs.modal.foco").on("hidden.bs.modal.foco", function () {
                         _procesandoSeleccionAvanzada = false;
                         $(this).off("hidden.bs.modal.foco");
+                        enfocarCantidadPrimerRegistro();
                         setTimeout(enfocarCantidadPrimerRegistro, 50);
+                        setTimeout(enfocarCantidadPrimerRegistro, 150);
+                        setTimeout(enfocarCantidadPrimerRegistro, 300);
                     });
 
                     $("#modalBusquedaAvanzada").modal("hide");
 
-                    var mensaje = exitosos + " artículo(s) agregado(s) al detalle.";
                     Swal.fire({
+                        toast: true,
+                        position: "top-end",
                         type: "success",
-                        title: "Completado",
-                        html: mensaje,
-                        timer: 900,
-                        showConfirmButton: false
-                    }).then(function () {
-                        _procesandoSeleccionAvanzada = false;
-                        enfocarCantidadPrimerRegistro();
-                        setTimeout(enfocarCantidadPrimerRegistro, 80);
-                        setTimeout(enfocarCantidadPrimerRegistro, 200);
+                        title: exitosos + " artículo(s) agregado(s) al detalle.",
+                        showConfirmButton: false,
+                        timer: 2000
                     });
 
-                    setTimeout(enfocarCantidadPrimerRegistro, 950);
-                    setTimeout(enfocarCantidadPrimerRegistro, 1150);
+                    setTimeout(enfocarCantidadPrimerRegistro, 80);
+                    setTimeout(enfocarCantidadPrimerRegistro, 200);
+                    setTimeout(enfocarCantidadPrimerRegistro, 400);
                 });
                 return;
             }
