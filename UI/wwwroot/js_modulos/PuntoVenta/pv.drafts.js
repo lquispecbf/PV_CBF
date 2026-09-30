@@ -66,10 +66,126 @@ PV.DraftManager = (function () {
         }
     }
 
+    function _generarDraftIdDeterminista(docEntry, docEntrySap) {
+        const sap = parseInt(docEntrySap) || 0;
+        const bd = parseInt(docEntry) || 0;
+        if (sap > 0) {
+            return "DRAFT_SAP_" + sap;
+        }
+        if (bd > 0) {
+            return "DRAFT_BD_" + bd;
+        }
+        return null;
+    }
+
+    function _limpiarBorradoresDuplicados(mapa, docEntry, docEntrySap, excludeDraftId) {
+        const sap = parseInt(docEntrySap) || 0;
+        const bd = parseInt(docEntry) || 0;
+        if (sap === 0 && bd === 0) return false;
+
+        let cambios = false;
+        const usuarioActual = _obtenerUsuarioActual();
+
+        for (const key in mapa) {
+            if (mapa.hasOwnProperty(key)) {
+                if (excludeDraftId && key === excludeDraftId) continue;
+                const item = mapa[key];
+                if (!item || !item.resumen) continue;
+
+                if (usuarioActual && item.usuario && item.usuario.toLowerCase() !== usuarioActual) {
+                    continue;
+                }
+
+                const itemSap = parseInt(item.resumen.docEntrySap) || 0;
+                const itemBd = parseInt(item.resumen.docEntry) || 0;
+
+                // Si coincide docEntrySap (orden de SAP)
+                if (sap > 0 && itemSap === sap) {
+                    delete mapa[key];
+                    cambios = true;
+                    continue;
+                }
+
+                // Si coincide docEntry (orden o borrador de BD)
+                if (bd > 0 && itemBd === bd && (sap === 0 || itemSap === sap)) {
+                    delete mapa[key];
+                    cambios = true;
+                }
+            }
+        }
+        return cambios;
+    }
+
+    function _deduplicarTodoElMapa(mapa) {
+        if (!mapa || typeof mapa !== "object") return false;
+        let cambios = false;
+        const usuarioActual = _obtenerUsuarioActual();
+        const sapMap = {}; // docEntrySap -> key
+        const bdMap = {};  // docEntry -> key
+
+        const keys = Object.keys(mapa);
+        keys.sort(function (a, b) {
+            const fechaA = mapa[a]?.fechaModificacion ? new Date(mapa[a].fechaModificacion).getTime() : 0;
+            const fechaB = mapa[b]?.fechaModificacion ? new Date(mapa[b].fechaModificacion).getTime() : 0;
+            return fechaB - fechaA; // El más reciente primero
+        });
+
+        for (const key of keys) {
+            const item = mapa[key];
+            if (!item || !item.resumen) continue;
+
+            if (usuarioActual && item.usuario && item.usuario.toLowerCase() !== usuarioActual) {
+                continue;
+            }
+
+            const sap = parseInt(item.resumen.docEntrySap) || 0;
+            const bd = parseInt(item.resumen.docEntry) || 0;
+
+            if (sap > 0) {
+                const targetKey = "DRAFT_SAP_" + sap;
+                if (!sapMap[sap]) {
+                    sapMap[sap] = targetKey;
+                    if (key !== targetKey) {
+                        // Migrar clave aleatoria a la clave determinística única
+                        item.draftId = targetKey;
+                        mapa[targetKey] = item;
+                        delete mapa[key];
+                        cambios = true;
+                    }
+                } else {
+                    // Ya existe un borrador más reciente de esta misma orden SAP -> eliminar duplicado
+                    delete mapa[key];
+                    cambios = true;
+                }
+            } else if (bd > 0) {
+                const targetKey = "DRAFT_BD_" + bd;
+                if (!bdMap[bd]) {
+                    bdMap[bd] = targetKey;
+                    if (key !== targetKey) {
+                        item.draftId = targetKey;
+                        mapa[targetKey] = item;
+                        delete mapa[key];
+                        cambios = true;
+                    }
+                } else {
+                    // Ya existe un borrador más reciente de este mismo borrador BD -> eliminar duplicado
+                    delete mapa[key];
+                    cambios = true;
+                }
+            }
+        }
+
+        return cambios;
+    }
+
     function _obtenerTodosBorradores() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
-            return raw ? JSON.parse(raw) : {};
+            const mapa = raw ? JSON.parse(raw) : {};
+            if (_deduplicarTodoElMapa(mapa)) {
+                _guardarTodosBorradores(mapa);
+            }
+            return mapa;
         } catch (e) {
             console.error("Error al leer borradores de localStorage", e);
             return {};
@@ -175,10 +291,15 @@ PV.DraftManager = (function () {
         let tipoOrigen = "NUEVA";
         if (docEntryVal > 0) {
             tipoOrigen = (docEntrySapVal > 0 || docStatusOriginalVal === "C") ? "REABIERTA_SAP" : "BORRADOR_BD";
+        } else if (docEntrySapVal > 0) {
+            tipoOrigen = "REABIERTA_SAP";
         }
 
+        const idDeterminista = _generarDraftIdDeterminista(docEntryVal, docEntrySapVal);
+        const draftIdFinal = idDeterminista || _obtenerCurrentDraftId();
+
         return {
-            draftId: _obtenerCurrentDraftId(),
+            draftId: draftIdFinal,
             tabId: _obtenerTabId(),
             usuario: usuarioActual,
             fechaCreacion: new Date().toISOString(),
@@ -242,12 +363,32 @@ PV.DraftManager = (function () {
         if (PV.Detalle && PV.Detalle.isReadOnly()) return;
 
         const estado = recolectarEstadoActual();
-        const mapa = _obtenerTodosBorradores();
-        const draftId = _obtenerCurrentDraftId();
-
         if (!estado) {
             _mostrarEstadoAutoSave("");
             return;
+        }
+
+        const mapa = _obtenerTodosBorradores();
+        const docEntryVal = estado.resumen.docEntry;
+        const docEntrySapVal = estado.resumen.docEntrySap;
+        const idDeterminista = _generarDraftIdDeterminista(docEntryVal, docEntrySapVal);
+        const draftId = idDeterminista || estado.draftId;
+
+        // Si es una orden reabierta o borrador existente: asegurar unicidad absoluta
+        if (idDeterminista) {
+            // 1. Limpiar borrador temporal de venta nueva si existía en la pestaña
+            const anteriorId = sessionStorage.getItem(SESSION_DRAFT_KEY);
+            if (anteriorId && anteriorId !== idDeterminista && anteriorId.indexOf("DRAFT_SAP_") === -1 && anteriorId.indexOf("DRAFT_BD_") === -1) {
+                if (mapa[anteriorId]) {
+                    delete mapa[anteriorId];
+                }
+            }
+
+            // 2. Limpiar duplicados previos de la misma orden
+            _limpiarBorradoresDuplicados(mapa, docEntryVal, docEntrySapVal, idDeterminista);
+
+            _setCurrentDraftId(idDeterminista);
+            estado.draftId = idDeterminista;
         }
 
         if (mapa[draftId] && mapa[draftId].fechaCreacion) {
@@ -260,6 +401,30 @@ PV.DraftManager = (function () {
 
         const hora = new Date().toLocaleTimeString();
         _mostrarEstadoAutoSave(`<i class="fa fa-check text-success mr-1"></i> Borrador guardado localmente (${hora})`);
+    }
+
+    function asociarDocumentoExistente(docEntry, docEntrySap, docStatusOriginal) {
+        const docEntryVal = parseInt(docEntry) || 0;
+        const docEntrySapVal = parseInt(docEntrySap) || 0;
+        const idDeterminista = _generarDraftIdDeterminista(docEntryVal, docEntrySapVal);
+        if (!idDeterminista) return;
+
+        const anteriorId = _currentDraftId || sessionStorage.getItem(SESSION_DRAFT_KEY);
+        const mapa = _obtenerTodosBorradores();
+
+        // Si la pestaña tenía un borrador temporal de venta nueva, limpiarlo
+        if (anteriorId && anteriorId !== idDeterminista && anteriorId.indexOf("DRAFT_SAP_") === -1 && anteriorId.indexOf("DRAFT_BD_") === -1) {
+            if (mapa[anteriorId]) {
+                delete mapa[anteriorId];
+            }
+        }
+
+        // Purgar duplicados de esta misma orden reabierta o borrador
+        _limpiarBorradoresDuplicados(mapa, docEntryVal, docEntrySapVal, idDeterminista);
+        _guardarTodosBorradores(mapa);
+
+        _setCurrentDraftId(idDeterminista);
+        actualizarBadgeBorradores();
     }
 
     function notificarCambio() {
@@ -379,10 +544,18 @@ PV.DraftManager = (function () {
     // Solo al emitir venta o borrador exitoso en BD: se elimina definitivamente de los borradores locales
     function eliminarBorradorVentaExitosa() {
         clearTimeout(_debounceTimer);
+        const docEntryVal = parseInt($("#hdfDocEntry").val()) || 0;
+        const docEntrySapVal = parseInt($("#hdfDocEntrySap").val()) || 0;
         const draftId = _currentDraftId || sessionStorage.getItem(SESSION_DRAFT_KEY);
-        if (draftId) {
-            eliminarBorrador(draftId);
+
+        const mapa = _obtenerTodosBorradores();
+        if (draftId && mapa[draftId]) {
+            delete mapa[draftId];
         }
+
+        _limpiarBorradoresDuplicados(mapa, docEntryVal, docEntrySapVal, null);
+        _guardarTodosBorradores(mapa);
+
         _setCurrentDraftId(null);
         _mostrarEstadoAutoSave("");
         actualizarBadgeBorradores();
@@ -718,6 +891,7 @@ PV.DraftManager = (function () {
         eliminarTodosBorradores: eliminarTodosBorradores,
         desvincularBorradorPestana: desvincularBorradorPestana,
         limpiarPestanaSinGuardar: limpiarPestanaSinGuardar,
+        asociarDocumentoExistente: asociarDocumentoExistente,
         eliminarBorradorVentaExitosa: eliminarBorradorVentaExitosa,
         abrirModalBorradores: abrirModalBorradores,
         actualizarBadgeBorradores: actualizarBadgeBorradores

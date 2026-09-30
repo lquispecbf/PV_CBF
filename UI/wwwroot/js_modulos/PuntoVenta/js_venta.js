@@ -1514,6 +1514,14 @@ function cargarVentaEditable(resp, docStatus, estadoEnvio) {
         $("#hdfDocEntrySap").val("");
     }
 
+    if (PV.DraftManager && typeof PV.DraftManager.asociarDocumentoExistente === "function") {
+        PV.DraftManager.asociarDocumentoExistente(
+            parseInt($("#hdfDocEntry").val()) || 0,
+            parseInt($("#hdfDocEntrySap").val()) || 0,
+            $("#hdfDocStatusOriginal").val() || ""
+        );
+    }
+
     $("#txtClienteNombre").val(resp.CARDNAME || "");
     $("#txtClienteRuc").val(resp.LICTRADNUM || "");
     $("#txtClienteCodigo").val(resp.CARDCODE || "");

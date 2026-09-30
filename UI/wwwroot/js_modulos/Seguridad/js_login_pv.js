@@ -11,6 +11,8 @@ $(document).ready(function () {
         sessionStorage.setItem(SESSION_TAB_ID_KEY, tabId);
     }
 
+    sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
+    window.__sesionExpiradaMostrada = false;
     localStorage.removeItem(SESSION_ACTIVE_USER_KEY);
 
     function normalizarUsuario(usuario) {
@@ -30,6 +32,8 @@ $(document).ready(function () {
 
     $(window).on('pageshow', function () {
         $('body').removeClass('loading');
+        sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
+        window.__sesionExpiradaMostrada = false;
         $("#txta").val("");
         $("#txtb").val("");
     });
@@ -91,6 +95,7 @@ $(document).ready(function () {
 
                 var usuario = respuesta.Usuario[0];
                 var debeCambiar = (usuario.FORZAR_CAMBIO_CLAVE === "1");
+                var mantenerSesion = (respuesta.MantenerSesion === true || respuesta.mantenerSesion === true);
 
                 $.session.set('SESSION_ID_USUARIO', usuario.ID);
                 $.session.set('SESSION_APELLIDOS', usuario.APELLIDOS);
@@ -105,12 +110,16 @@ $(document).ready(function () {
                 $.session.set('SESSION_DEBE_CAMBIAR', debeCambiar ? "1" : "0");
                 $.session.set('SESSION_PROXIMO_VENCER', usuario.PROXIMO_VENCER || "0");
                 $.session.set('SESSION_DIAS_CLAVE', (usuario.DIAS_RESTANTES_CLAVE != null ? usuario.DIAS_RESTANTES_CLAVE.toString() : ""));
+                $.session.set('SESSION_MANTENER_SESION', mantenerSesion ? "1" : "0");
 
                 sessionStorage.setItem('DEBE_CAMBIAR', debeCambiar ? '1' : '0');
                 sessionStorage.setItem('SESSION_DEBE_CAMBIAR', debeCambiar ? '1' : '0');
                 sessionStorage.setItem('SESSION_PROXIMO_VENCER', usuario.PROXIMO_VENCER || "0");
                 sessionStorage.setItem('SESSION_DIAS_CLAVE', (usuario.DIAS_RESTANTES_CLAVE != null ? usuario.DIAS_RESTANTES_CLAVE.toString() : ""));
+                sessionStorage.setItem('SESSION_MANTENER_SESION', mantenerSesion ? '1' : '0');
                 sessionStorage.removeItem('AVISO_CLAVE_MOSTRADO');
+                sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
+                window.__sesionExpiradaMostrada = false;
                 sessionStorage.setItem('SESSION_USUARIO', usuario.USUARIO);
                 sessionStorage.setItem('SESSION_NOMBRES', usuario.NOMBRES);
                 sessionStorage.setItem('SESSION_APELLIDOS', usuario.APELLIDOS);

@@ -158,7 +158,10 @@ namespace UI.Controllers
                 {
                     Estado = true,
                     Mensaje = mensaje,
-                    Usuario = listaUsuarios
+                    Usuario = listaUsuarios,
+                    MantenerSesion = mantenerSesion,
+                    PuedeAnularEnviadoWms = puedeAnularWms,
+                    RolCondicionPago = rolCondicionPago
                 });
             }
             catch (Exception ex)

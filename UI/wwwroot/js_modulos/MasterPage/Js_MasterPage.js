@@ -184,27 +184,71 @@ $(document).ready(function () {
         }
     });
 
-    /* MANEJO GLOBAL DE ERRORES AJAX */
+    /* MANEJO GLOBAL DE EXPIRACIÓN DE SESIÓN */
     let sesionExpiradaMostrada = false;
 
+    function notificarSesionExpiradaYRedirigir() {
+        if (window.location.pathname.toLowerCase().includes('/seguridad/login')) {
+            return;
+        }
+
+        if (sesionExpiradaMostrada || window.__sesionExpiradaMostrada || sessionStorage.getItem('CBF_SESION_EXPIRADA_DIALOGO') === '1') {
+            return;
+        }
+
+        sesionExpiradaMostrada = true;
+        window.__sesionExpiradaMostrada = true;
+        sessionStorage.setItem('CBF_SESION_EXPIRADA_DIALOGO', '1');
+
+        if (keepAliveIntervalId) {
+            clearInterval(keepAliveIntervalId);
+            keepAliveIntervalId = null;
+        }
+
+        $('body').removeClass('loading');
+        $.session.clear();
+        sessionStorage.clear();
+        localStorage.removeItem(SESSION_ACTIVE_USER_KEY);
+
+        // Esperar estrictamente a que el usuario presione el botón Aceptar / OK
+        if (typeof swal === 'function') {
+            swal({
+                title: "Sesión expirada",
+                text: "Su sesión ha finalizado. Presione Aceptar para ir al inicio de sesión.",
+                type: "warning",
+                confirmButtonColor: "#1ab394",
+                confirmButtonText: "Aceptar",
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            }).then(function () {
+                sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
+                window.location.href = '/Seguridad/Login';
+            });
+        } else if (window.Swal && typeof window.Swal.fire === 'function') {
+            window.Swal.fire({
+                title: "Sesión expirada",
+                text: "Su sesión ha finalizado. Presione Aceptar para ir al inicio de sesión.",
+                icon: "warning",
+                confirmButtonColor: "#1ab394",
+                confirmButtonText: "Aceptar",
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            }).then(function () {
+                sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
+                window.location.href = '/Seguridad/Login';
+            });
+        } else {
+            alert("Su sesión ha finalizado. Presione Aceptar para continuar.");
+            window.location.href = '/Seguridad/Login';
+        }
+    }
+
+    /* MANEJO GLOBAL DE ERRORES AJAX */
     $(document).ajaxError(function (event, xhr) {
         $('body').removeClass('loading');
 
         if (xhr.status === 401) {
-            if (sesionExpiradaMostrada || window.__sesionExpiradaMostrada) return;
-            sesionExpiradaMostrada = true;
-            window.__sesionExpiradaMostrada = true;
-
-            $.session.clear();
-            swal({
-                title: "Sesión expirada",
-                text: "Su sesión ha finalizado. Será redirigido al login.",
-                type: "warning",
-                confirmButtonText: "Aceptar",
-                allowOutsideClick: false
-            }).then(() => {
-                window.location.href = '/Seguridad/Login';
-            });
+            notificarSesionExpiradaYRedirigir();
             return;
         }
 
@@ -256,7 +300,7 @@ $(document).ready(function () {
             async: true,
             success: function (sesion) {
                 if (!sesion || sesion.autenticado !== true) {
-                    window.location.href = "/Seguridad/Login";
+                    notificarSesionExpiradaYRedirigir();
                     return;
                 }
 
@@ -283,7 +327,7 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 if (xhr.status === 401) {
-                    window.location.href = "/Seguridad/Login";
+                    notificarSesionExpiradaYRedirigir();
                     return;
                 }
                 console.error("No se pudo reconstruir la sesión desde backend.");
@@ -337,7 +381,7 @@ $(document).ready(function () {
                 console.warn("No se pudo cargar menú dinámico.", xhr.status);
                 $('body').removeClass('loading');
                 if (xhr.status === 401) {
-                    window.location.href = "/Seguridad/Login";
+                    notificarSesionExpiradaYRedirigir();
                 }
             }
         });
@@ -391,29 +435,59 @@ $(document).ready(function () {
 
     /* RUTINA DE KEEP-ALIVE PARA USUARIOS AUTORIZADOS EN PUNTO DE VENTA */
     let keepAliveIntervalId = null;
-    function iniciarKeepAliveSiAplica() {
-        if (keepAliveIntervalId) return;
+    let ultimoKeepAliveMs = 0;
 
+    function ejecutarPingKeepAlive() {
+        if (window.location.pathname.toLowerCase().includes('/seguridad/login')) {
+            if (keepAliveIntervalId) {
+                clearInterval(keepAliveIntervalId);
+                keepAliveIntervalId = null;
+            }
+            return;
+        }
+
+        const ahora = Date.now();
+        if (ahora - ultimoKeepAliveMs < 60000) {
+            // Evitar pings múltiples en menos de 1 minuto
+            return;
+        }
+        ultimoKeepAliveMs = ahora;
+
+        $.ajax({
+            type: "GET",
+            url: "/PuntoVenta/KeepAlive",
+            cache: false,
+            success: function (res) {
+                // Sesión renovada con éxito en segundo plano
+            },
+            error: function (xhr) {
+                if (xhr.status === 401) {
+                    notificarSesionExpiradaYRedirigir();
+                }
+            }
+        });
+    }
+
+    function iniciarKeepAliveSiAplica() {
         var mantenerSesion = (window.MANTENER_SESION_PUNTO_VENTA === true) ||
-                             ($.session.get('SESSION_MANTENER_SESION') === '1');
+                             ($.session.get('SESSION_MANTENER_SESION') === '1') ||
+                             (sessionStorage.getItem('SESSION_MANTENER_SESION') === '1');
 
         if (mantenerSesion) {
-            const KEEPALIVE_INTERVAL_MS = 5 * 60 * 1000; // Ping cada 5 minutos
-            keepAliveIntervalId = setInterval(function () {
-                $.ajax({
-                    type: "GET",
-                    url: "/PuntoVenta/KeepAlive",
-                    cache: false,
-                    success: function (res) {
-                        // Sesión renovada con éxito en segundo plano
-                    },
-                    error: function (xhr) {
-                        if (xhr.status === 401) {
-                            window.location.href = "/Seguridad/Login";
-                        }
-                    }
-                });
-            }, KEEPALIVE_INTERVAL_MS);
+            if (!keepAliveIntervalId) {
+                const KEEPALIVE_INTERVAL_MS = 3 * 60 * 1000; // Ping cada 3 minutos
+                keepAliveIntervalId = setInterval(ejecutarPingKeepAlive, KEEPALIVE_INTERVAL_MS);
+            }
+
+            // Despertar inmediato cuando el usuario regresa a la pestaña (Edge Sleeping Tabs)
+            document.addEventListener("visibilitychange", function () {
+                if (document.visibilityState === "visible") {
+                    ejecutarPingKeepAlive();
+                }
+            });
+            window.addEventListener("focus", function () {
+                ejecutarPingKeepAlive();
+            });
         }
     }
 
@@ -422,7 +496,12 @@ $(document).ready(function () {
     // Salir / Logout
     $(document).on('click', '.js-logout', function (e) {
         e.preventDefault();
+        if (keepAliveIntervalId) {
+            clearInterval(keepAliveIntervalId);
+            keepAliveIntervalId = null;
+        }
         $.session.clear();
+        sessionStorage.clear();
         localStorage.removeItem(SESSION_ACTIVE_USER_KEY);
         localStorage.setItem(SESSION_EVENT_KEY, JSON.stringify({
             tipo: "LOGOUT",
