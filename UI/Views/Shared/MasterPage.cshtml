@@ -32,7 +32,20 @@
     <!-- Scripts Principales -->
     <script src="~/js/Bootstrap/jquery-3.1.1.min.js"></script>
     <script src="~/js/jquery/jquery-migrate-3.0.0.js"></script>
-    <script>if (window.jQuery) { jQuery.migrateMute = true; jQuery.migrateTrace = false; }</script>
+    <script>
+        if (window.jQuery) { 
+            jQuery.migrateMute = true; 
+            jQuery.migrateTrace = false; 
+            jQuery(document).ajaxSend(function (event, jqXHR, settings) {
+                if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !settings.crossDomain) {
+                    var token = jQuery('meta[name="csrf-token"]').attr('content') || jQuery('input[name="__RequestVerificationToken"]').val();
+                    if (token) {
+                        jqXHR.setRequestHeader('X-CSRF-TOKEN', token);
+                    }
+                }
+            });
+        }
+    </script>
     <script src="~/js/Bootstrap/popper.min.js"></script>
     <script src="~/js/Bootstrap/bootstrap.js"></script>
     <script src="~/js/plugins/metisMenu/jquery.metisMenu.js"></script>

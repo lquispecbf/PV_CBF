@@ -550,6 +550,7 @@ PV.Validaciones = (function () {
                         }
                     },
                     error: function (xhr) {
+                        if (typeof esErrorSesion === "function" && esErrorSesion(xhr) || xhr && (xhr.status === 401 || xhr.status === 403 || (xhr.getResponseHeader && xhr.getResponseHeader('X-Session-Expired') === 'true'))) return;
                         let msg = "Error al guardar la venta.";
 
                         if (xhr.responseJSON) {
@@ -683,6 +684,7 @@ PV.Validaciones = (function () {
                         }
                     },
                     error: function (xhr) {
+                        if (typeof esErrorSesion === "function" && esErrorSesion(xhr) || xhr && (xhr.status === 401 || xhr.status === 403 || (xhr.getResponseHeader && xhr.getResponseHeader('X-Session-Expired') === 'true'))) return;
                         let msg = "Error al guardar el borrador.";
                         if (xhr.responseJSON && xhr.responseJSON.error) {
                             msg = xhr.responseJSON.error;

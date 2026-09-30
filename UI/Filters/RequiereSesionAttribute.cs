@@ -22,7 +22,16 @@ namespace UI.Filters
             {
                 if (EsPeticionAjax(context))
                 {
-                    context.Result = new UnauthorizedResult(); // 401
+                    context.HttpContext.Response.Headers["X-Session-Expired"] = "true";
+                    context.Result = new JsonResult(new
+                    {
+                        success = false,
+                        error = "SESSION_EXPIRED",
+                        mensaje = "Su sesión ha finalizado. Por favor inicie sesión nuevamente."
+                    })
+                    {
+                        StatusCode = StatusCodes.Status401Unauthorized
+                    };
                 }
                 else
                 {
@@ -42,7 +51,16 @@ namespace UI.Filters
             {
                 if (EsPeticionAjax(context))
                 {
-                    context.Result = new UnauthorizedResult();
+                    context.HttpContext.Response.Headers["X-Session-Expired"] = "true";
+                    context.Result = new JsonResult(new
+                    {
+                        success = false,
+                        error = "PASSWORD_CHANGE_REQUIRED",
+                        mensaje = "Debe actualizar su contraseña para continuar."
+                    })
+                    {
+                        StatusCode = StatusCodes.Status401Unauthorized
+                    };
                 }
                 else
                 {

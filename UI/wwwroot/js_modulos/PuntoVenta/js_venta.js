@@ -1,5 +1,9 @@
 var tblBusquedaVentas = null;
 
+function esErrorSesion(xhr) {
+    return xhr && (xhr.status === 401 || xhr.status === 403 || (xhr.getResponseHeader && xhr.getResponseHeader('X-Session-Expired') === 'true'));
+}
+
 $(document).ready(function () {
 
     PV.Core.inicializar();
@@ -77,6 +81,7 @@ $(document).ready(function () {
                     URL.revokeObjectURL(url);
                 },
                 error: function (xhr) {
+                    if (esErrorSesion(xhr)) return;
                     if (xhr.status === 404) {
                         Swal.fire({ type: "warning", title: "Sin datos", text: "No se encontraron datos para exportar." });
                     } else {
@@ -520,6 +525,7 @@ function buscarVentas(onComplete) {
             $("#tblBusquedaVentas_wrapper").show();
         },
         error: function (xhr) {
+            if (esErrorSesion(xhr)) return;
             var msg = "Error al buscar ventas.";
             if (xhr.responseJSON && xhr.responseJSON.error) {
                 msg = xhr.responseJSON.error;
@@ -764,6 +770,7 @@ function trasladarDesdeBusqueda() {
                     });
                 },
                 error: function (xhr) {
+                    if (esErrorSesion(xhr)) return;
                     var msg = "Error al trasladar la venta.";
                     if (xhr.responseJSON && xhr.responseJSON.error) {
                         msg = xhr.responseJSON.error;
@@ -843,6 +850,7 @@ function enviarWmsDesdeBusqueda() {
                     });
                 },
                 error: function (xhr) {
+                    if (esErrorSesion(xhr)) return;
                     var msg = "Error al enviar a WMS la venta.";
                     if (xhr.responseJSON && xhr.responseJSON.error) {
                         msg = xhr.responseJSON.error;
@@ -889,6 +897,7 @@ $(document).on("click", ".btn-ver-venta", function () {
                     cargarVentaReadOnly(resp);
                 },
                 error: function (xhr) {
+                    if (esErrorSesion(xhr)) return;
                     var msg = "Error al cargar venta.";
                     if (xhr.responseJSON && xhr.responseJSON.error) {
                         msg = xhr.responseJSON.error;
@@ -975,6 +984,7 @@ $(document).on("click", ".btn-anular-venta", function () {
                     });
                 },
                 error: function (xhr) {
+                    if (esErrorSesion(xhr)) return;
                     var msg = "Error al anular la venta.";
                     if (xhr.responseJSON && xhr.responseJSON.error) {
                         msg = xhr.responseJSON.error;
@@ -1064,6 +1074,7 @@ $(document).on("click", ".btn-reabrir-venta", function () {
                         cargarVentaEditable(resp, docStatus, estadoEnvio);
                     },
                     error: function (xhr) {
+                        if (esErrorSesion(xhr)) return;
                         var msg = "Error al reabrir la venta.";
                         if (xhr.responseJSON && xhr.responseJSON.error) {
                             msg = xhr.responseJSON.error;

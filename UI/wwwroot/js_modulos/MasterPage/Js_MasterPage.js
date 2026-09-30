@@ -28,15 +28,13 @@
     }
 })();
 
-// Interceptor global para adjuntar Token CSRF (Antiforgery) en todas las peticiones AJAX POST/PUT/DELETE
+// Interceptor global inmutable para adjuntar Token CSRF (Antiforgery) en TODAS las peticiones AJAX POST/PUT/DELETE
 if (window.jQuery) {
-    $.ajaxSetup({
-        beforeSend: function (xhr, settings) {
-            if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !settings.crossDomain) {
-                var token = $('meta[name="csrf-token"]').attr('content') || $('input[name="__RequestVerificationToken"]').val();
-                if (token) {
-                    xhr.setRequestHeader('X-CSRF-TOKEN', token);
-                }
+    $(document).ajaxSend(function (event, jqXHR, settings) {
+        if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !settings.crossDomain) {
+            var token = $('meta[name="csrf-token"]').attr('content') || $('input[name="__RequestVerificationToken"]').val();
+            if (token) {
+                jqXHR.setRequestHeader('X-CSRF-TOKEN', token);
             }
         }
     });
@@ -258,10 +256,14 @@ $(document).ready(function () {
     }
 
     /* MANEJO GLOBAL DE ERRORES AJAX */
-    $(document).ajaxError(function (event, xhr) {
+    $(document).ajaxError(function (event, xhr, settings) {
         $('body').removeClass('loading');
 
-        if (xhr.status === 401) {
+        var isSessionExpired = xhr.status === 401 ||
+                               xhr.status === 403 ||
+                               (xhr.getResponseHeader && xhr.getResponseHeader('X-Session-Expired') === 'true');
+
+        if (isSessionExpired) {
             notificarSesionExpiradaYRedirigir();
             return;
         }
