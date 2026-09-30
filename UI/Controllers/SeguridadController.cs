@@ -64,6 +64,7 @@ namespace UI.Controllers
         }
 
         [HttpPost]
+        [IgnoreAntiforgeryToken]
         public async Task<JsonResult> Validar_Login([FromBody] BE_Usuario oUsuario)
         {
             try

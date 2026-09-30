@@ -28,8 +28,20 @@ builder.Services.AddHttpClient<IPuntoVentaApiClient, PuntoVentaApiClient>(client
     client.Timeout = TimeSpan.FromSeconds(90);
 });
 
-// MVC & JSON con PascalCase/propiedades exactas
-builder.Services.AddControllersWithViews()
+// Configuración de Seguridad Antiforgery (Protección CSRF para MVC)
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = ".CBF.PuntoVenta.Antiforgery";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+});
+
+// MVC & JSON con PascalCase/propiedades exactas y validación CSRF global
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute());
+})
 .AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.PropertyNamingPolicy = null;

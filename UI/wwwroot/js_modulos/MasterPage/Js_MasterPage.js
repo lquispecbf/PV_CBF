@@ -28,6 +28,20 @@
     }
 })();
 
+// Interceptor global para adjuntar Token CSRF (Antiforgery) en todas las peticiones AJAX POST/PUT/DELETE
+if (window.jQuery) {
+    $.ajaxSetup({
+        beforeSend: function (xhr, settings) {
+            if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !settings.crossDomain) {
+                var token = $('meta[name="csrf-token"]').attr('content') || $('input[name="__RequestVerificationToken"]').val();
+                if (token) {
+                    xhr.setRequestHeader('X-CSRF-TOKEN', token);
+                }
+            }
+        }
+    });
+}
+
 $(document).ready(function () {
 
     // Mover modales a la raíz del body para evitar conflicto WAI-ARIA (aria-hidden en #wrapper)

@@ -1,6 +1,8 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
 @{
     var debeCambiarClave = (ViewContext.HttpContext.Session.GetString("SESSION_DEBE_CAMBIAR") == "1");
     var mantenerSesion = (ViewBag.MantenerSesionPuntoVenta == true || ViewContext.HttpContext.Session.GetString("SESSION_MANTENER_SESION") == "1");
+    var csrfToken = Xsrf.GetAndStoreTokens(ViewContext.HttpContext).RequestToken;
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -8,6 +10,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="csrf-token" content="@csrfToken" />
 
     <title>.::. Corporación BioFarmacéutica - Punto de Venta .::.</title>
   
