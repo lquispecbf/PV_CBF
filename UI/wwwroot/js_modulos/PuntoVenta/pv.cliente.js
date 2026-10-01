@@ -36,7 +36,19 @@ PV.Cliente = (function () {
         }
     }
 
+    function _asegurarBotonInfoControlados() {
+        const $ddlEnvio = $("#ddlClienteDireccionEnvioId");
+        if ($ddlEnvio.length && !$("#btnInfoControladosDireccion").length) {
+            const $parent = $ddlEnvio.parent();
+            if (!$parent.hasClass("input-group")) {
+                $ddlEnvio.wrap('<div class="input-group input-group-sm"></div>');
+                $ddlEnvio.after('<div class="input-group-append"><button type="button" id="btnInfoControladosDireccion" class="btn btn-outline-success" title="Ver autorización de productos controlados en esta dirección" tabindex="-1"><i class="fa fa-info-circle"></i></button></div>');
+            }
+        }
+    }
+
     function inicializar() {
+        _asegurarBotonInfoControlados();
         inicializarAutocompleteCliente();
         registrarEventos();
     }
@@ -167,6 +179,94 @@ PV.Cliente = (function () {
         $("#btnDesgloseCredito").on("click", function () {
             if (!PV.Utils.puedeInteractuar()) return;
             cargarDesgloseCredito();
+        });
+        $(document).off("click.infoControlados", "#btnInfoControladosDireccion").on("click.infoControlados", "#btnInfoControladosDireccion", function () {
+            mostrarInfoControladosDireccion();
+        });
+    }
+
+    function mostrarInfoControladosDireccion() {
+        const codigoCliente = $("#txtClienteCodigo").val();
+        if (!codigoCliente) {
+            Swal.fire({
+                type: "warning",
+                title: "Cliente no seleccionado",
+                text: "Debe seleccionar un cliente primero.",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        const $opt = $("#ddlClienteDireccionEnvioId option:selected");
+        const dirCodigo = $("#ddlClienteDireccionEnvioId").val();
+        if (!dirCodigo || $opt.length === 0) {
+            Swal.fire({
+                type: "warning",
+                title: "Dirección no seleccionada",
+                text: "Debe seleccionar una dirección de envío.",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        const dirTexto = ($("#txtClienteDireccionEnvio").val() || $opt.data("direccion") || dirCodigo).toString().trim();
+        const prec = ($opt.data("prec") || $opt.attr("data-prec") || "NO").toString().toUpperCase();
+        const psi = ($opt.data("psi") || $opt.attr("data-psi") || "NO").toString().toUpperCase();
+        const estu = ($opt.data("estu") || $opt.attr("data-estu") || "NO").toString().toUpperCase();
+        const psiIv = ($opt.data("psi-iv") || $opt.data("psiIv") || $opt.attr("data-psi-iv") || "NO").toString().toUpperCase();
+
+        const esSi = function (val) {
+            return val === "SI" || val === "Y" || val === "1";
+        };
+
+        const renderBadge = function (val) {
+            if (esSi(val)) {
+                return '<span class="badge" style="background-color:#1ab394; color:#ffffff; font-size:12px; font-weight:bold; padding:5px 14px; border-radius:4px;"><i class="fa fa-check mr-1"></i>SI</span>';
+            } else {
+                return '<span class="badge" style="background-color:#ed5565; color:#ffffff; font-size:12px; font-weight:bold; padding:5px 14px; border-radius:4px;"><i class="fa fa-times mr-1"></i>NO</span>';
+            }
+        };
+
+        const categorias = [
+            { nombre: "Precursores", codigo: "02", auth: prec },
+            { nombre: "Psicotrópicos", codigo: "03", auth: psi },
+            { nombre: "Estupefacientes", codigo: "04", auth: estu },
+            { nombre: "Psicotrópicos IV B", codigo: "05", auth: psiIv }
+        ];
+
+        let html = '<div style="text-align:left; margin-top:5px;">';
+        html += '<div style="background:#f8f9fa; border:1px solid #e7eaec; border-radius:4px; padding:10px 14px; margin-bottom:12px; font-size:12px;">' +
+            '<div><strong>Local / Id:</strong> <span class="text-primary font-weight-bold">' + PV.esc(dirCodigo) + '</span></div>' +
+            '<div><strong>Dirección:</strong> ' + PV.esc(dirTexto) + '</div>' +
+            '</div>';
+
+        html += '<table class="table table-bordered table-striped table-hover mb-0" style="font-size:13px; width:100%;">';
+        html += '<thead>' +
+            '<tr style="background-color:#1ab394; color:white;">' +
+            '<th style="background-color:#1ab394; color:white; border-color:#16987e; text-align:center; width:60px;">Cód.</th>' +
+            '<th style="background-color:#1ab394; color:white; border-color:#16987e; text-align:left;">Categoría de Controlado</th>' +
+            '<th style="background-color:#1ab394; color:white; border-color:#16987e; text-align:center; width:110px;">Autorizado</th>' +
+            '</tr>' +
+            '</thead>' +
+            '<tbody>';
+
+        categorias.forEach(function (cat) {
+            html += '<tr>' +
+                '<td class="text-center font-weight-bold" style="vertical-align:middle;">' + cat.codigo + '</td>' +
+                '<td style="vertical-align:middle; font-weight:500;">' + cat.nombre + '</td>' +
+                '<td class="text-center" style="vertical-align:middle;">' + renderBadge(cat.auth) + '</td>' +
+                '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+
+        Swal.fire({
+            title: "Autorización de Controlados",
+            html: html,
+            type: "info",
+            confirmButtonText: "Entendido",
+            confirmButtonColor: "#1ab394",
+            width: 550
         });
     }
     function cargarDireccionesCliente(codigoCliente, selectedEnvioId, selectedFacturaId, customEnvioTexto, customFacturaTexto, onComplete) {
@@ -689,7 +789,8 @@ PV.Cliente = (function () {
         aplicarEstadoCreditoPorFormaPago: aplicarEstadoCreditoPorFormaPago,
         aplicarEstadoCreditoDesdeSap: aplicarEstadoCreditoDesdeSap,
         aplicarEstadoCreditoDesdeSqlServer: aplicarEstadoCreditoDesdeSqlServer,
-        validarClienteBloqueado: validarClienteBloqueado
+        validarClienteBloqueado: validarClienteBloqueado,
+        mostrarInfoControladosDireccion: mostrarInfoControladosDireccion
     };
 
 })();
