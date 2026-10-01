@@ -635,6 +635,19 @@ PV.DraftManager = (function () {
         $("#chkSeleccionarTodosBorradores").prop("checked", total > 0 && seleccionados === total);
     }
 
+    function formatearFechaHora(fechaVal) {
+        if (!fechaVal) return "-";
+        const d = new Date(fechaVal);
+        if (isNaN(d.getTime())) return "-";
+        const dia = String(d.getDate()).padStart(2, "0");
+        const mes = String(d.getMonth() + 1).padStart(2, "0");
+        const anio = d.getFullYear();
+        const horas = String(d.getHours()).padStart(2, "0");
+        const minutos = String(d.getMinutes()).padStart(2, "0");
+        const segundos = String(d.getSeconds()).padStart(2, "0");
+        return `${dia}/${mes}/${anio} ${horas}:${minutos}:${segundos}`;
+    }
+
     function abrirModalBorradores() {
         const lista = listarBorradores();
         const $tbody = $("#tblBorradoresLocales tbody");
@@ -649,17 +662,17 @@ PV.DraftManager = (function () {
         } else {
             $("#btnEliminarTodosBorradores").prop("disabled", false);
             lista.forEach(function (b, idx) {
-                const fecha = new Date(b.fechaModificacion).toLocaleString();
+                const fecha = formatearFechaHora(b.fechaModificacion);
                 const totalFmt = (parseFloat(b.resumen.montoTotal) || 0).toFixed(2);
                 const esEstaPestana = (b.draftId === _currentDraftId);
                 const badgePestana = esEstaPestana ? '<span class="badge badge-primary ml-1">Esta pestaña</span>' : '';
 
-                let badgeTipo = '<span class="badge badge-secondary ml-1">Nuevo</span>';
+                let badgeTipo = '<span class="badge badge-secondary">Nuevo</span>';
                 if (b.resumen.docEntry > 0) {
                     if (b.resumen.docStatusOriginal === 'C' || (b.resumen.docEntrySap && b.resumen.docEntrySap > 0)) {
-                        badgeTipo = `<span class="badge badge-info ml-1" title="Orden Reabierta N° ${b.resumen.docEntry}">Reabierta #${b.resumen.docEntry}</span>`;
+                        badgeTipo = `<span class="badge badge-info" title="Orden Reabierta N° ${b.resumen.docEntry}">Reabierta #${b.resumen.docEntry}</span>`;
                     } else {
-                        badgeTipo = `<span class="badge badge-warning ml-1" title="Borrador BD N° ${b.resumen.docEntry}">Borrador BD #${b.resumen.docEntry}</span>`;
+                        badgeTipo = `<span class="badge badge-warning" title="Borrador BD N° ${b.resumen.docEntry}">Borrador BD #${b.resumen.docEntry}</span>`;
                     }
                 }
 
@@ -669,7 +682,10 @@ PV.DraftManager = (function () {
                             <input type="checkbox" class="chk-borrador-item" value="${b.draftId}" />
                         </td>
                         <td class="text-center font-weight-bold">${idx + 1}</td>
-                        <td>${fecha} ${badgeTipo} ${badgePestana}</td>
+                        <td>
+                            <div style="white-space:nowrap;">${fecha}</div>
+                            <div class="mt-1">${badgeTipo}${badgePestana}</div>
+                        </td>
                         <td>
                             <strong>${b.resumen.clienteNombre || 'Sin nombre'}</strong>
                             ${b.resumen.clienteRuc ? '<br><small class="text-muted">RUC/DNI: ' + b.resumen.clienteRuc + '</small>' : ''}
@@ -712,7 +728,7 @@ PV.DraftManager = (function () {
         }
 
         if (borrador && borrador.resumen && (borrador.resumen.totalArticulos > 0 || borrador.resumen.clienteCodigo)) {
-            const fecha = new Date(borrador.fechaModificacion).toLocaleTimeString();
+            const fecha = formatearFechaHora(borrador.fechaModificacion);
             const cliente = borrador.resumen.clienteNombre || "Cliente sin registrar";
             const total = (parseFloat(borrador.resumen.montoTotal) || 0).toFixed(2);
             const cant = borrador.resumen.totalArticulos;

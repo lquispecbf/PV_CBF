@@ -696,7 +696,7 @@ PV.Detalle = (function () {
             const codigo = ($fila.attr("data-itemcode") || $fila.find(".txtDetalleCodigo").val() || "").trim();
             if (!codigo) {
                 Swal.fire({
-                    icon: "warning",
+                    type: "warning",
                     title: "Atención",
                     text: "No se ha seleccionado o ingresado el código del artículo en esta fila."
                 });
@@ -1036,7 +1036,32 @@ PV.Detalle = (function () {
                 const almacen = $("#ddlVentaAlmacen").val();
 
                 cargarDetalleArticuloVenta(codigo, listaPrecio, almacen, function (detalle) {
-                    if (!detalle || !detalle.ARTICULO) return;
+                    if (!detalle || !detalle.ARTICULO) {
+                        limpiarFilaDetalle($fila);
+                        Swal.fire({
+                            type: "warning",
+                            title: "Artículo no disponible",
+                            text: "El código de artículo ingresado no existe o se encuentra inactivo.",
+                            confirmButtonColor: "#1ab394"
+                        }).then(function () {
+                            $fila.find(".txtDetalleCodigo").focus();
+                        });
+                        return;
+                    }
+
+                    if (PV.Validaciones && typeof PV.Validaciones.validarArticuloControlado === "function") {
+                        var tipo = detalle.ARTICULO.TIPO_CONTROLADO || "01";
+                        var validacion = PV.Validaciones.validarArticuloControlado(tipo);
+                        if (!validacion.autorizado) {
+                            PV.Validaciones.mostrarAlertaControladosNoAutorizados([{
+                                codigo: detalle.ARTICULO.CODIGO,
+                                descripcion: detalle.ARTICULO.DESCRIPCION || detalle.ARTICULO.CODIGO,
+                                tipo: validacion.tipoNombre
+                            }], "Artículo no autorizado para esta dirección");
+                            limpiarFilaDetalle($fila);
+                            return;
+                        }
+                    }
 
                     confirmarItemDuplicado(detalle.ARTICULO.CODIGO, $fila).then(function (ok) {
                         if (ok) {
@@ -1048,7 +1073,14 @@ PV.Detalle = (function () {
                     mostrarLoading: true,
                     onError: function () {
                         limpiarFilaDetalle($fila);
-                        Swal.fire({ type: "error", title: "Error", text: "No se pudo cargar el artículo. Verifique el código e intente nuevamente." });
+                        Swal.fire({
+                            type: "warning",
+                            title: "Artículo no disponible",
+                            text: "El código de artículo ingresado no existe o se encuentra inactivo.",
+                            confirmButtonColor: "#1ab394"
+                        }).then(function () {
+                            $fila.find(".txtDetalleCodigo").focus();
+                        });
                     }
                 });
             }
@@ -1060,7 +1092,11 @@ PV.Detalle = (function () {
             setTimeout(function () {
                 var term = ($input.val() || "").trim();
                 if (term.length >= 1) {
-                    $input.autocomplete("search", term);
+                    try {
+                        if ($input.data("ui-autocomplete")) {
+                            $input.autocomplete("search", term);
+                        }
+                    } catch (e) { }
                 }
             }, 30);
         });
@@ -1754,6 +1790,9 @@ PV.Detalle = (function () {
         inicializarAutocompleteDetalleDescripcion(
             $fila.find(".txtDetalleDescripcion")
         );
+        inicializarAutocompleteDetalleCodigo(
+            $fila.find(".txtDetalleCodigo")
+        );
 
         return $fila;
     }
@@ -2396,7 +2435,16 @@ PV.Detalle = (function () {
                 const almacen = $("#ddlVentaAlmacen").val();
 
                 cargarDetalleArticuloVenta(codigo, listaPrecio, almacen, function (detalle) {
-                    if (!detalle || !detalle.ARTICULO) return;
+                    if (!detalle || !detalle.ARTICULO) {
+                        limpiarFilaDetalle($fila);
+                        Swal.fire({
+                            type: "warning",
+                            title: "Artículo no disponible",
+                            text: "El artículo seleccionado no existe o se encuentra inactivo.",
+                            confirmButtonColor: "#1ab394"
+                        });
+                        return;
+                    }
 
                     confirmarItemDuplicado(detalle.ARTICULO.CODIGO, $fila).then(function (ok) {
                         if (ok) {
@@ -2408,7 +2456,12 @@ PV.Detalle = (function () {
                     mostrarLoading: true,
                     onError: function () {
                         limpiarFilaDetalle($fila);
-                        Swal.fire({ type: "error", title: "Error", text: "No se pudo cargar el artículo seleccionado. Verifique e intente nuevamente." });
+                        Swal.fire({
+                            type: "warning",
+                            title: "Artículo no disponible",
+                            text: "El artículo seleccionado no existe o se encuentra inactivo.",
+                            confirmButtonColor: "#1ab394"
+                        });
                     }
                 });
                 return false;
@@ -2505,7 +2558,16 @@ PV.Detalle = (function () {
                 const almacen = $("#ddlVentaAlmacen").val();
 
                 cargarDetalleArticuloVenta(codigo, listaPrecio, almacen, function (detalle) {
-                    if (!detalle || !detalle.ARTICULO) return;
+                    if (!detalle || !detalle.ARTICULO) {
+                        limpiarFilaDetalle($fila);
+                        Swal.fire({
+                            type: "warning",
+                            title: "Artículo no disponible",
+                            text: "El código de artículo ingresado no existe o se encuentra inactivo.",
+                            confirmButtonColor: "#1ab394"
+                        });
+                        return;
+                    }
 
                     confirmarItemDuplicado(detalle.ARTICULO.CODIGO, $fila).then(function (ok) {
                         if (ok) {
@@ -2517,7 +2579,12 @@ PV.Detalle = (function () {
                     mostrarLoading: true,
                     onError: function () {
                         limpiarFilaDetalle($fila);
-                        Swal.fire({ type: "error", title: "Error", text: "No se pudo cargar el artículo seleccionado. Verifique e intente nuevamente." });
+                        Swal.fire({
+                            type: "warning",
+                            title: "Artículo no disponible",
+                            text: "El código de artículo ingresado no existe o se encuentra inactivo.",
+                            confirmButtonColor: "#1ab394"
+                        });
                     }
                 });
                 return false;
@@ -2561,8 +2628,9 @@ PV.Detalle = (function () {
                     }
 
                     quitarLoading();
-                    console.log("Error al cargar detalle optimizado del artículo");
-                    if (typeof opciones.onError === "function") opciones.onError(xhr);
+                    if (typeof opciones.onError === "function") {
+                        opciones.onError(xhr);
+                    }
                 }
             });
         }
