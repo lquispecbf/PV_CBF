@@ -215,6 +215,186 @@ PV.Validaciones = (function () {
         return errores;
     }
 
+    function validarClienteSeleccionadoParaDetalle() {
+        var cliente = ($("#txtClienteCodigo").val() || "").trim();
+        var dirEnvio = ($("#ddlClienteDireccionEnvioId").val() || "").trim();
+
+        if (!cliente) {
+            Swal.fire({
+                type: "warning",
+                title: "Seleccione un Cliente",
+                text: "Primero debe seleccionar un cliente para elegir una dirección de envío válida antes de ingresar artículos.",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#1ab394"
+            }).then(function () {
+                enfocarCliente();
+            });
+            return false;
+        }
+
+        if (!dirEnvio) {
+            Swal.fire({
+                type: "warning",
+                title: "Dirección de Envío Requerida",
+                text: "El cliente seleccionado no cuenta con una dirección de envío válida seleccionada.",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#1ab394"
+            });
+            return false;
+        }
+
+        return true;
+    }
+
+    function _obtenerNombreTipoControlado(tipo) {
+        tipo = (tipo || "").toString().trim();
+        if (tipo === "02" || tipo === "2") return "Precursores";
+        if (tipo === "03" || tipo === "3") return "Psicotrópicos";
+        if (tipo === "04" || tipo === "4") return "Estupefacientes";
+        if (tipo === "05" || tipo === "5") return "Psicotrópicos IV B";
+        return "Controlado";
+    }
+
+    function validarArticuloControlado(tipoControlado) {
+        var tipo = (tipoControlado || "01").toString().trim();
+        if (tipo === "01" || tipo === "1" || !tipo) {
+            return { autorizado: true, tipo: "01", tipoNombre: "Normal" };
+        }
+
+        var $optEnvio = $("#ddlClienteDireccionEnvioId option:selected");
+        if ($optEnvio.length === 0 || !$("#ddlClienteDireccionEnvioId").val()) {
+            return { autorizado: false, tipo: tipo, tipoNombre: _obtenerNombreTipoControlado(tipo) };
+        }
+
+        var prec = ($optEnvio.data("prec") || "NO").toString().toUpperCase();
+        var psi = ($optEnvio.data("psi") || "NO").toString().toUpperCase();
+        var estu = ($optEnvio.data("estu") || "NO").toString().toUpperCase();
+        var psiIv = ($optEnvio.data("psi-iv") || $optEnvio.data("psiIv") || "NO").toString().toUpperCase();
+
+        var autorizado = false;
+        var tipoNombre = _obtenerNombreTipoControlado(tipo);
+
+        if (tipo === "02" || tipo === "2") {
+            autorizado = (prec === "SI" || prec === "Y" || prec === "1");
+        } else if (tipo === "03" || tipo === "3") {
+            autorizado = (psi === "SI" || psi === "Y" || psi === "1");
+        } else if (tipo === "04" || tipo === "4") {
+            autorizado = (estu === "SI" || estu === "Y" || estu === "1");
+        } else if (tipo === "05" || tipo === "5") {
+            autorizado = (psiIv === "SI" || psiIv === "Y" || psiIv === "1");
+        }
+
+        return {
+            autorizado: autorizado,
+            tipo: tipo,
+            tipoNombre: tipoNombre
+        };
+    }
+
+    function mostrarAlertaControladosNoAutorizados(listaErrores, titulo) {
+        if (!listaErrores || listaErrores.length === 0) return;
+
+        var htmlTabla = '<div style="max-height:300px; overflow-y:auto; margin-top:10px; text-align:left;">';
+        htmlTabla += '<p class="text-danger font-weight-bold" style="font-size:13px; margin-bottom:8px;">' +
+            'Los siguientes artículos <strong>NO están autorizados</strong> para ser comercializados en el local / dirección de envío seleccionada:</p>';
+        htmlTabla += '<table class="table table-bordered table-striped table-hover mb-0" style="font-size:12px; width:100%;">';
+        htmlTabla += '<thead>' +
+            '<tr style="background-color:#1ab394; color:white;">' +
+            '<th style="background-color:#1ab394; color:white; border-color:#16987e; text-align:center; width:90px;">Código</th>' +
+            '<th style="background-color:#1ab394; color:white; border-color:#16987e; text-align:left;">Descripción</th>' +
+            '<th style="background-color:#1ab394; color:white; border-color:#16987e; text-align:center; width:130px;">Categoría</th>' +
+            '</tr>' +
+            '</thead>' +
+            '<tbody>';
+
+        listaErrores.forEach(function (e) {
+            htmlTabla += '<tr>' +
+                '<td class="text-center font-weight-bold" style="vertical-align:middle;">' + (e.codigo || "-") + '</td>' +
+                '<td style="vertical-align:middle;">' + (e.descripcion || "-") + '</td>' +
+                '<td class="text-center" style="vertical-align:middle;"><span class="label label-danger">' + (e.tipo || "Controlado") + '</span></td>' +
+                '</tr>';
+        });
+
+        htmlTabla += '</tbody></table></div>';
+
+        Swal.fire({
+            type: "error",
+            title: titulo || "Productos Controlados No Autorizados",
+            html: htmlTabla,
+            confirmButtonText: "Entendido",
+            confirmButtonColor: "#1ab394",
+            width: 650
+        });
+    }
+
+    function validarControladosEnDetalle() {
+        const errores = [];
+        $("#tblVentaDetalle tbody tr").each(function () {
+            const $fila = $(this);
+            const codigo = ($fila.find(".txtDetalleCodigo").val() || "").trim();
+            if (!codigo) return;
+
+            const descripcion = ($fila.find(".txtDetalleDescripcion").val() || codigo).trim();
+            const tipoControlado = ($fila.data("tipocontrolado") || $fila.attr("data-tipocontrolado") || "01").toString().trim();
+
+            const res = validarArticuloControlado(tipoControlado);
+            if (!res.autorizado) {
+                errores.push({
+                    codigo: codigo,
+                    descripcion: descripcion,
+                    tipo: res.tipoNombre
+                });
+            }
+        });
+        return errores;
+    }
+
+    function revalidarControladosEnDetalle() {
+        if (PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly()) {
+            return [];
+        }
+
+        const errores = [];
+
+        $("#tblVentaDetalle tbody tr").each(function () {
+            const $fila = $(this);
+            const codigo = ($fila.find(".txtDetalleCodigo").val() || "").trim();
+            if (!codigo) return;
+
+            const descripcion = ($fila.find(".txtDetalleDescripcion").val() || codigo).trim();
+            const tipoControlado = ($fila.data("tipocontrolado") || $fila.attr("data-tipocontrolado") || "01").toString().trim();
+
+            const res = validarArticuloControlado(tipoControlado);
+            const $txtDesc = $fila.find(".txtDetalleDescripcion");
+
+            if (!res.autorizado) {
+                $fila.addClass("fila-error-controlado");
+                $txtDesc.css({
+                    "background-color": "#ed5565",
+                    "color": "#ffffff"
+                }).attr("title", "Artículo no autorizado para la dirección de envío seleccionada (" + res.tipoNombre + ")");
+
+                errores.push({
+                    codigo: codigo,
+                    descripcion: descripcion,
+                    tipo: res.tipoNombre
+                });
+            } else {
+                $fila.removeClass("fila-error-controlado");
+                $txtDesc.css({
+                    "background-color": "",
+                    "color": ""
+                }).removeAttr("title");
+            }
+        });
+
+        if (errores.length > 0) {
+            mostrarAlertaControladosNoAutorizados(errores, "Artículos no autorizados en dirección de envío");
+        }
+
+        return errores;
+    }
+
     function recolectarDetalle(docstatus) {
         const items = [];
         const esBorrador = docstatus === "E";
@@ -486,6 +666,12 @@ PV.Validaciones = (function () {
                 html: errores.join("<br>"),
                 confirmButtonText: "Aceptar"
             });
+            return;
+        }
+
+        const erroresControlados = validarControladosEnDetalle();
+        if (erroresControlados.length > 0) {
+            revalidarControladosEnDetalle();
             return;
         }
 
@@ -818,6 +1004,7 @@ PV.Validaciones = (function () {
     var _datosExcel = [];
 
     function abrirModalImportarExcel() {
+        if (!validarClienteSeleccionadoParaDetalle()) return;
         if (PV.Utils.modalAbierto("#modalImportarExcel")) return;
         _workbookExcel = null;
         _datosExcel = [];
@@ -945,6 +1132,16 @@ PV.Validaciones = (function () {
                     var data = dictResultados[codUpper];
 
                     if (data && data.ARTICULO) {
+                        var checkControlado = validarArticuloControlado(data.ARTICULO.TIPO_CONTROLADO);
+                        if (!checkControlado.autorizado) {
+                            errores.push({
+                                fila: itemActual.fila,
+                                codigo: itemActual.codigo,
+                                error: "No autorizado en dirección de envío (" + checkControlado.tipoNombre + ")"
+                            });
+                            continue;
+                        }
+
                         var $filaVacia = $("#tblVentaDetalle tbody tr").filter(function () {
                             return !$(this).attr("data-itemcode");
                         }).first();
@@ -1010,9 +1207,9 @@ PV.Validaciones = (function () {
             });
         } else {
             var htmlErrores = '<div style="max-height:300px;overflow:auto;text-align:left">';
-            htmlErrores += '<p><strong>Importados:</strong> ' + exitosos + ' | <strong>Con errores:</strong> ' + errores.length + '</p>';
+            htmlErrores += '<p><strong>Importados:</strong> ' + exitosos + ' | <strong>Con observaciones / errores:</strong> ' + errores.length + '</p>';
             htmlErrores += '<table class="table table-sm table-bordered table-striped mb-0" style="font-size:12px">';
-            htmlErrores += '<thead><tr style="background-color:#1ab394;color:white;"><th style="background-color:#1ab394;color:white;width:60px;text-align:center;border-color:#16987e;">Fila</th><th style="background-color:#1ab394;color:white;border-color:#16987e;">Código</th><th style="background-color:#1ab394;color:white;border-color:#16987e;">Error</th></tr></thead><tbody>';
+            htmlErrores += '<thead><tr style="background-color:#1ab394;color:white;"><th style="background-color:#1ab394;color:white;width:60px;text-align:center;border-color:#16987e;">Fila</th><th style="background-color:#1ab394;color:white;border-color:#16987e;">Código</th><th style="background-color:#1ab394;color:white;border-color:#16987e;">Observación</th></tr></thead><tbody>';
             errores.forEach(function (e) {
                 htmlErrores += '<tr><td class="text-center">' + e.fila + '</td><td><b>' + e.codigo + '</b></td><td class="text-danger">' + e.error + '</td></tr>';
             });
@@ -1020,7 +1217,7 @@ PV.Validaciones = (function () {
 
             Swal.fire({
                 type: "warning",
-                title: "Importación con errores",
+                title: "Importación con observaciones",
                 html: htmlErrores,
                 confirmButtonText: "Aceptar",
                 width: 600
@@ -1034,7 +1231,12 @@ PV.Validaciones = (function () {
         inicializar: inicializar,
         validarCabeceraVenta: validarCabeceraVenta,
         guardarVenta: guardarVenta,
-        guardarBorrador: guardarBorrador
+        guardarBorrador: guardarBorrador,
+        validarClienteSeleccionadoParaDetalle: validarClienteSeleccionadoParaDetalle,
+        validarArticuloControlado: validarArticuloControlado,
+        mostrarAlertaControladosNoAutorizados: mostrarAlertaControladosNoAutorizados,
+        validarControladosEnDetalle: validarControladosEnDetalle,
+        revalidarControladosEnDetalle: revalidarControladosEnDetalle
     };
 
 })();

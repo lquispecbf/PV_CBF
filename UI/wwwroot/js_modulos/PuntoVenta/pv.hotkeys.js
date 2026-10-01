@@ -490,6 +490,13 @@ PV.Hotkeys = (function () {
             _$controlInvocadorBusqueda = null;
         }
 
+        if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
+            if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
+                _bloqueoAperturaBusqueda = false;
+                return;
+            }
+        }
+
         if (PV._clienteBloqueado) {
             _bloqueoAperturaBusqueda = false;
             Swal.fire({
@@ -643,6 +650,7 @@ PV.Hotkeys = (function () {
                             data-protocolos="${item.PROTOCOLOS || ""}"
                             data-titularrs="${item.REGISTRO_SANITARIO || ""}"
                             data-preciocaja="${item.PRECIO_CAJA || 0}"
+                            data-tipocontrolado="${item.TIPO_CONTROLADO || "01"}"
                             class="fila-articulo-avanzado">
                             <td class="text-center">
                                 <div class="checkbox checkbox-success" style="margin:0; padding-left:20px; line-height:1;">
@@ -813,8 +821,21 @@ PV.Hotkeys = (function () {
             ESPECIFICACION: $seleccionada.data("especificacion"),
             PROTOCOLOS: $seleccionada.data("protocolos"),
             REGISTRO_SANITARIO: $seleccionada.data("titularrs"),
-            PRECIO_CAJA: $seleccionada.data("preciocaja")
+            PRECIO_CAJA: $seleccionada.data("preciocaja"),
+            TIPO_CONTROLADO: $seleccionada.data("tipocontrolado") || "01"
         };
+
+        if (PV.Validaciones && typeof PV.Validaciones.validarArticuloControlado === "function") {
+            var validacionControlado = PV.Validaciones.validarArticuloControlado(item.TIPO_CONTROLADO);
+            if (!validacionControlado.autorizado) {
+                PV.Validaciones.mostrarAlertaControladosNoAutorizados([{
+                    codigo: item.CODIGO,
+                    descripcion: item.DESCRIPCION,
+                    tipo: validacionControlado.tipoNombre
+                }], "Artículo no autorizado para esta dirección");
+                return;
+            }
+        }
 
         var codigosExistentes = obtenerCodigosArticulosEnDetalle();
         var esDuplicado = codigosExistentes.indexOf((item.CODIGO || "").toUpperCase()) !== -1;
@@ -971,10 +992,34 @@ PV.Hotkeys = (function () {
                     ESPECIFICACION: $tr.data("especificacion"),
                     PROTOCOLOS: $tr.data("protocolos"),
                     REGISTRO_SANITARIO: $tr.data("titularrs"),
-                    PRECIO_CAJA: $tr.data("preciocaja")
+                    PRECIO_CAJA: $tr.data("preciocaja"),
+                    TIPO_CONTROLADO: $tr.data("tipocontrolado") || "01"
                 });
             }
         });
+
+        if (PV.Validaciones && typeof PV.Validaciones.validarArticuloControlado === "function") {
+            var itemsValidos = [];
+            var itemsNoAutorizados = [];
+            items.forEach(function (it) {
+                var check = PV.Validaciones.validarArticuloControlado(it.TIPO_CONTROLADO);
+                if (check.autorizado) {
+                    itemsValidos.push(it);
+                } else {
+                    itemsNoAutorizados.push({
+                        codigo: it.CODIGO,
+                        descripcion: it.DESCRIPCION,
+                        tipo: check.tipoNombre
+                    });
+                }
+            });
+
+            if (itemsNoAutorizados.length > 0) {
+                PV.Validaciones.mostrarAlertaControladosNoAutorizados(itemsNoAutorizados, "Artículos no autorizados omitidos");
+            }
+
+            items = itemsValidos;
+        }
 
         if (items.length === 0) return;
 

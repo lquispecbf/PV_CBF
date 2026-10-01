@@ -424,6 +424,18 @@ PV.Detalle = (function () {
             actualizarStockPorVenderDetalle();
         });
 
+        $(document).off("focus.validarClienteDetalle", ".txtDetalleDescripcion, .txtDetalleCodigo").on("focus.validarClienteDetalle", ".txtDetalleDescripcion, .txtDetalleCodigo", function () {
+            if (_modoLectura) return;
+            var $fila = $(this).closest("tr");
+            if (filaDetalleEstaVacia($fila)) {
+                if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
+                    if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
+                        $(this).blur();
+                    }
+                }
+            }
+        });
+
         $(document).off("click.detalleEliminar").on("click.detalleEliminar", ".btn-detalle-eliminar", function () {
             const $fila = $(this).closest("tr");
             const $tbody = $("#tblVentaDetalle tbody");
@@ -1838,7 +1850,30 @@ PV.Detalle = (function () {
         $fila.attr("data-igvafect", item.IGV_AFECT || "IGV");
         $fila.data("ugpentry", item.UOMENTRY || 0);
 
-        $fila.find(".txtDetalleDescripcion").val(item.DESCRIPCION || "");
+        var tipoControlado = (item.TIPO_CONTROLADO || "01").toString().trim();
+        $fila.attr("data-tipocontrolado", tipoControlado);
+        $fila.data("tipocontrolado", tipoControlado);
+
+        var $txtDesc = $fila.find(".txtDetalleDescripcion");
+        $txtDesc.val(item.DESCRIPCION || "");
+
+        if (!_modoLectura && PV.Validaciones && typeof PV.Validaciones.validarArticuloControlado === "function") {
+            var checkControlado = PV.Validaciones.validarArticuloControlado(tipoControlado);
+            if (!checkControlado.autorizado) {
+                $fila.addClass("fila-error-controlado");
+                $txtDesc.css({
+                    "background-color": "#ed5565",
+                    "color": "#ffffff"
+                }).attr("title", "Artículo no autorizado para la dirección de envío seleccionada (" + checkControlado.tipoNombre + ")");
+            } else {
+                $fila.removeClass("fila-error-controlado");
+                $txtDesc.css({
+                    "background-color": "",
+                    "color": ""
+                }).removeAttr("title");
+            }
+        }
+
         $fila.find(".txtDetalleCodigo").val(item.CODIGO || "");
         $fila.find(".txtDetallePorVender").val(Number(item.STOCK || 0).toFixed(2));
         $fila.find(".txtDetallePorVender").data("stockbase", Number(item.STOCK || 0));
@@ -2020,7 +2055,30 @@ PV.Detalle = (function () {
         $fila.attr("data-igvafect", item.IGV_AFECT || "IGV");
         $fila.data("ugpentry", item.UOMENTRY || 0);
 
-        $fila.find(".txtDetalleDescripcion").val(item.DESCRIPCION || "");
+        var tipoControlado = (item.TIPO_CONTROLADO || "01").toString().trim();
+        $fila.attr("data-tipocontrolado", tipoControlado);
+        $fila.data("tipocontrolado", tipoControlado);
+
+        var $txtDesc = $fila.find(".txtDetalleDescripcion");
+        $txtDesc.val(item.DESCRIPCION || "");
+
+        if (!_modoLectura && PV.Validaciones && typeof PV.Validaciones.validarArticuloControlado === "function") {
+            var checkControlado = PV.Validaciones.validarArticuloControlado(tipoControlado);
+            if (!checkControlado.autorizado) {
+                $fila.addClass("fila-error-controlado");
+                $txtDesc.css({
+                    "background-color": "#ed5565",
+                    "color": "#ffffff"
+                }).attr("title", "Artículo no autorizado para la dirección de envío seleccionada (" + checkControlado.tipoNombre + ")");
+            } else {
+                $fila.removeClass("fila-error-controlado");
+                $txtDesc.css({
+                    "background-color": "",
+                    "color": ""
+                }).removeAttr("title");
+            }
+        }
+
         $fila.find(".txtDetalleCodigo").val(item.CODIGO || "");
         $fila.find(".txtDetallePorVender").val(Number(item.STOCK || 0).toFixed(2));
         $fila.find(".txtDetallePorVender").data("stockbase", Number(item.STOCK || 0));
@@ -2092,6 +2150,10 @@ PV.Detalle = (function () {
         $fila.attr("data-codebars", item.CODEBARS || "");
         $fila.attr("data-igvafect", item.IGV_AFECT || "IGV");
         $fila.data("ugpentry", item.UOMENTRY || 0);
+
+        var tipoControlado = (item.TIPO_CONTROLADO || "01").toString().trim();
+        $fila.attr("data-tipocontrolado", tipoControlado);
+        $fila.data("tipocontrolado", tipoControlado);
 
         $fila.find(".txtDetalleDescripcion").val(item.ITEMNAME || "");
         $fila.find(".txtDetalleCodigo").val(item.ITEMCODE || "");
@@ -2256,6 +2318,13 @@ PV.Detalle = (function () {
                     return;
                 }
 
+                if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
+                    if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
+                        response([]);
+                        return;
+                    }
+                }
+
                 const listaPrecio = $("#ddlClienteListaPrecio").val();
                 const almacen = $("#ddlVentaAlmacen").val();
 
@@ -2304,6 +2373,20 @@ PV.Detalle = (function () {
                 const codigo = ui.item.codigo || (ui.item.item ? ui.item.item.CODIGO : null);
                 if (!codigo) return false;
 
+                if (PV.Validaciones && typeof PV.Validaciones.validarArticuloControlado === "function") {
+                    var tipo = ui.item.item ? ui.item.item.TIPO_CONTROLADO : (ui.item.tipoControlado || "01");
+                    var validacion = PV.Validaciones.validarArticuloControlado(tipo);
+                    if (!validacion.autorizado) {
+                        PV.Validaciones.mostrarAlertaControladosNoAutorizados([{
+                            codigo: codigo,
+                            descripcion: ui.item.value || ui.item.label || codigo,
+                            tipo: validacion.tipoNombre
+                        }], "Artículo no autorizado para esta dirección");
+                        limpiarFilaDetalle($fila);
+                        return false;
+                    }
+                }
+
                 try {
                     $input.autocomplete("close");
                 } catch (e) { }
@@ -2342,6 +2425,13 @@ PV.Detalle = (function () {
                 if (_modoLectura || _bloqueadoPorCliente || (window.PV && PV._clienteBloqueado)) {
                     response([]);
                     return;
+                }
+
+                if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
+                    if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
+                        response([]);
+                        return;
+                    }
                 }
 
                 const listaPrecio = $("#ddlClienteListaPrecio").val();
@@ -2391,6 +2481,20 @@ PV.Detalle = (function () {
                 const $fila = $input.closest("tr");
                 const codigo = ui.item.codigo || (ui.item.item ? ui.item.item.CODIGO : null);
                 if (!codigo) return false;
+
+                if (PV.Validaciones && typeof PV.Validaciones.validarArticuloControlado === "function") {
+                    var tipo = ui.item.item ? ui.item.item.TIPO_CONTROLADO : (ui.item.tipoControlado || "01");
+                    var validacion = PV.Validaciones.validarArticuloControlado(tipo);
+                    if (!validacion.autorizado) {
+                        PV.Validaciones.mostrarAlertaControladosNoAutorizados([{
+                            codigo: codigo,
+                            descripcion: ui.item.value || ui.item.label || codigo,
+                            tipo: validacion.tipoNombre
+                        }], "Artículo no autorizado para esta dirección");
+                        limpiarFilaDetalle($fila);
+                        return false;
+                    }
+                }
 
                 try {
                     $input.autocomplete("close");

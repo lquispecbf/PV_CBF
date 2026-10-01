@@ -82,7 +82,11 @@ PV.Cliente = (function () {
                 $("#txtVentaLimiteCredito").val("");
                 $("#btnDesgloseCredito").prop("disabled", true);
                 bloquearBusquedaCliente();
-                cargarDireccionesCliente(c.CODIGO_CLIENTE);
+                cargarDireccionesCliente(c.CODIGO_CLIENTE, null, null, null, null, function () {
+                    if (PV.Validaciones && typeof PV.Validaciones.revalidarControladosEnDetalle === "function") {
+                        PV.Validaciones.revalidarControladosEnDetalle();
+                    }
+                });
                 PV.Catalogos.cargarFormasPago(c.CONDICION_PAGO, function () {
                     aplicarEstadoCreditoPorFormaPago(c.CODIGO_CLIENTE, c.CONDICION_PAGO);
                 });
@@ -152,6 +156,9 @@ PV.Cliente = (function () {
         $("#ddlClienteDireccionEnvioId").on("change", function () {
             const direccion = $(this).find(":selected").data("direccion") || "";
             $("#txtClienteDireccionEnvio").val(direccion);
+            if (PV.Validaciones && typeof PV.Validaciones.revalidarControladosEnDetalle === "function") {
+                PV.Validaciones.revalidarControladosEnDetalle();
+            }
         });
         $("#ddlClienteDireccionFacturaId").on("change", function () {
             const direccion = $(this).find(":selected").data("direccion") || "";
@@ -270,7 +277,11 @@ PV.Cliente = (function () {
             data.forEach(function (item) {
                 html += `<option value="${item.CODIGO_DIRECCION}"
                             data-direccion="${formatearDireccionCliente(item)}"
-                            data-predeterminada="${item.ES_PREDETERMINADA || 'N'}">
+                            data-predeterminada="${item.ES_PREDETERMINADA || 'N'}"
+                            data-prec="${item.U_CBF_PREC || 'NO'}"
+                            data-psi="${item.U_CBF_PSI || 'NO'}"
+                            data-estu="${item.U_CBF_ESTU || 'NO'}"
+                            data-psi-iv="${item.U_CBF_PSI_IV || 'NO'}">
                         ${item.CODIGO_DIRECCION}
                      </option>`;
             });

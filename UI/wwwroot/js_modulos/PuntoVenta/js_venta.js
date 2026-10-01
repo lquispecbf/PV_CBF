@@ -1717,6 +1717,9 @@ function cargarDetalleEditableOptimizado(resp) {
                 PV.Detalle.recalcularTotales();
                 PV.Detalle.agregarFilaDetalleVacia();
                 mostrarErroresFraccionadoFinal();
+                if (PV.Validaciones && typeof PV.Validaciones.revalidarControladosEnDetalle === "function") {
+                    PV.Validaciones.revalidarControladosEnDetalle();
+                }
                 PV.Utils.cerrarModalProgreso(400, function () {
                     PV.Utils._procesando = false;
                 });
@@ -1744,6 +1747,9 @@ function cargarDetalleEditableOptimizado(resp) {
                 PV.Utils.actualizarModalProgreso(total, total, "Completado");
                 PV.Detalle.recalcularTotales();
                 PV.Detalle.agregarFilaDetalleVacia();
+                if (PV.Validaciones && typeof PV.Validaciones.revalidarControladosEnDetalle === "function") {
+                    PV.Validaciones.revalidarControladosEnDetalle();
+                }
                 PV.Utils.cerrarModalProgreso(400, function () {
                     PV.Utils._procesando = false;
                 });
