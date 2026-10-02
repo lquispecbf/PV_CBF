@@ -16,8 +16,25 @@ PV.DraftManager = (function () {
     let _debounceTimer = null;
     let _tabId = null;
     let _currentDraftId = null;
-    let _autoSaveHabilitado = true;
     let _restaurandoBorrador = false;
+
+    function _tienePermisoBorrador() {
+        if (typeof tienePermisoPv === "function") {
+            return tienePermisoPv("puedeGuardarBorrador", true);
+        }
+        if (window.PERMISOS_PV) {
+            if (typeof window.PERMISOS_PV.puedeGuardarBorrador === "boolean") {
+                return window.PERMISOS_PV.puedeGuardarBorrador;
+            }
+            if (typeof window.PERMISOS_PV.PuedeGuardarBorrador === "boolean") {
+                return window.PERMISOS_PV.PuedeGuardarBorrador;
+            }
+            if (Array.isArray(window.PERMISOS_PV.Acciones)) {
+                return window.PERMISOS_PV.Acciones.indexOf("VENTA.GUARDAR_BORRADOR") !== -1;
+            }
+        }
+        return true;
+    }
 
     // Obtener usuario autenticado de forma unificada
     function _obtenerUsuarioActual() {
@@ -359,7 +376,11 @@ PV.DraftManager = (function () {
     }
 
     function guardarBorradorActual(silencioso = true) {
-        if (!_autoSaveHabilitado || _restaurandoBorrador) return;
+        if (!_tienePermisoBorrador()) {
+            _mostrarEstadoAutoSave("");
+            return;
+        }
+        if (_restaurandoBorrador) return;
         if (PV.Detalle && PV.Detalle.isReadOnly()) return;
 
         const estado = recolectarEstadoActual();
@@ -404,6 +425,7 @@ PV.DraftManager = (function () {
     }
 
     function asociarDocumentoExistente(docEntry, docEntrySap, docStatusOriginal) {
+        if (!_tienePermisoBorrador()) return;
         const docEntryVal = parseInt(docEntry) || 0;
         const docEntrySapVal = parseInt(docEntrySap) || 0;
         const idDeterminista = _generarDraftIdDeterminista(docEntryVal, docEntrySapVal);
@@ -428,7 +450,11 @@ PV.DraftManager = (function () {
     }
 
     function notificarCambio() {
-        if (!_autoSaveHabilitado || _restaurandoBorrador) return;
+        if (!_tienePermisoBorrador()) {
+            _mostrarEstadoAutoSave("");
+            return;
+        }
+        if (_restaurandoBorrador) return;
         if (PV.Detalle && PV.Detalle.isReadOnly()) return;
 
         _mostrarEstadoAutoSave('<i class="fa fa-spinner fa-spin text-muted mr-1"></i> Guardando cambios...');
@@ -523,6 +549,10 @@ PV.DraftManager = (function () {
     // Al limpiar formulario:
     // Asegura el borrador de la venta actual en localStorage y genera un nuevo draftId para la pestaña
     function desvincularBorradorPestana() {
+        if (!_tienePermisoBorrador()) {
+            limpiarPestanaSinGuardar();
+            return;
+        }
         if (PV.Detalle && PV.Detalle.isReadOnly()) {
             limpiarPestanaSinGuardar();
             return;
@@ -715,6 +745,12 @@ PV.DraftManager = (function () {
     }
 
     function verificarRecuperacionPestana() {
+        if (!_tienePermisoBorrador()) {
+            _setCurrentDraftId(null);
+            _mostrarEstadoAutoSave("");
+            return;
+        }
+
         const currentId = sessionStorage.getItem(SESSION_DRAFT_KEY);
         if (!currentId) return;
 
@@ -770,6 +806,14 @@ PV.DraftManager = (function () {
     }
 
     function inicializar() {
+        if (!_tienePermisoBorrador()) {
+            _setCurrentDraftId(null);
+            _mostrarEstadoAutoSave("");
+            $("#badgeBorradoresCount").text("0").hide();
+            $("#btnBorradoresLocales").addClass("d-none");
+            return;
+        }
+
         _obtenerTabId();
         _obtenerCurrentDraftId();
         _purgarBorradoresViejos();
@@ -783,6 +827,14 @@ PV.DraftManager = (function () {
         // Abrir modal de borradores
         $(document).on("click", "#btnBorradoresLocales", function (e) {
             e.preventDefault();
+            if (typeof tienePermisoPv === "function" && !tienePermisoPv("puedeGuardarBorrador", true)) {
+                Swal.fire({
+                    type: "warning",
+                    title: "Acceso Denegado",
+                    text: "No cuenta con permisos para gestionar borradores de venta."
+                });
+                return;
+            }
             if (document.activeElement && typeof document.activeElement.blur === "function") {
                 try { document.activeElement.blur(); } catch (err) { }
             }

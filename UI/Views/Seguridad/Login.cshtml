@@ -2,188 +2,236 @@
     ViewData["Title"] = "Punto de Venta - Acceso";
     Layout = null;
 }
-
 <!DOCTYPE html>
 <html lang="es">
-<head runat="server">
+<head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>.::. PUNTO DE VENTA - Corporación BioFarmacéutica .::.</title>
 
-    <title>.::. Corporación BioFarmacéutica - Punto de Venta .::.</title>
+    <!-- Estilos de Login (Diseño Extranet CBF - Ultraliviano) -->
+    <link href="~/css/Login/StyleLogin2.css?v=1.0.1" rel="stylesheet" />
 
-    <link href="~/Css/bootstrap.min.css?v=1.0.0" rel="stylesheet" />
-    <link href="~/Css/Login/StyleLogin2.css?v=12.0.0" rel="stylesheet" />
+    <!-- Iconos FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
 
-    <script src="~/js/jquery/jquery-3.4.1.js?v=1.0.0"></script>
-    <script src="~/js/sweetalert2-7.26.12/package/dist/sweetalert2.js?v=1.0.0"></script>
-    <script src="~/Js/Bootstrap/jquery.session.js?v=1.0.0"></script>
+    <!-- SweetAlert2 PVD -->
     <link href="~/js/sweetalert2-7.26.12/package/dist/sweetalert2.css?v=1.0.0" rel="stylesheet" />
-    <script src="~/js_modulos/seguridad/js_login_pv.js?v=@DateTime.Now.Ticks"></script>
 </head>
 
 <body>
+
     <div class="load"></div>
 
-    <div class="login-wrapper">
+    <div class="auth-wrapper">
 
-        <!-- IZQUIERDA: CARRUSEL -->
-        <section class="login-carousel" aria-label="Carrusel">
-            <div class="carousel">
+        <!-- Panel Izquierdo: Formulario de Login -->
+        <div class="auth-panel-form">
 
-                <div class="slides">
-                    <div class="slide is-active" style="background-image:url('/img/4.jpg')"></div>
-                    <div class="slide" style="background-image:url('/img/5.jpg')"></div>
-                    <div class="slide" style="background-image:url('/img/6.jpg')"></div>          
-                    <div class="slide" style="background-image:url('/img/9.jpg')"></div>
-                    <div class="slide" style="background-image:url('/img/fond5666.jpg')"></div>
+            <div class="auth-card-body">
+
+                <!-- Logo Corporativo CBF -->
+                <div class="auth-logo-wrap">
+                    <img src="~/img/logo_cbf.png"
+                         class="auth-logo"
+                         alt="Logo CBF" />
                 </div>
 
-                <div class="carousel-overlay">
-                    <h2>Corporación BioFarmacéutica</h2>
-                    <p>Punto de Venta • Rápido • Confiable</p>
+                <!-- Subtítulo Punto de Venta -->
+                <div class="auth-subtitle">
+                    <span class="auth-badge-pv">Punto de Venta</span>
                 </div>
 
-                <!-- Flechas -->
-                <button class="carousel-btn prev" type="button" aria-label="Anterior">
-                    <span class="chev">‹</span>
-                </button>
-                <button class="carousel-btn next" type="button" aria-label="Siguiente">
-                    <span class="chev">›</span>
-                </button>
-
-                <!-- Dots -->
-                <div class="carousel-dots" aria-label="Indicadores">
-                    <button class="dot is-active" type="button" data-index="0" aria-label="Imagen 1"></button>
-                    <button class="dot" type="button" data-index="1" aria-label="Imagen 2"></button>
-                    <button class="dot" type="button" data-index="2" aria-label="Imagen 3"></button>
-                    <button class="dot" type="button" data-index="3" aria-label="Imagen 4"></button>
-                    <button class="dot" type="button" data-index="4" aria-label="Imagen 5"></button>
+                <!-- GIF de Seguridad -->
+                <div class="auth-animation">
+                    <img src="~/img/seguridad.gif"
+                         alt="Seguridad" />
                 </div>
-            </div>
-        </section>
 
-        <!-- DERECHA: PANEL DE LOGIN -->
-        <section class="login-panel">
-            <div class="logo-wrap">
-                <div class="login-box">
+                <!-- Honeypot -->
+                <div aria-hidden="true"
+                     style="position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden">
+                    <input type="text"
+                           name="username"
+                           tabindex="-1"
+                           autocomplete="off" />
+                    <input type="password"
+                           name="password"
+                           tabindex="-1"
+                           autocomplete="off" />
+                </div>
 
-                    <img src="~/img/seguridad.gif" class="avatar" />
-                    <br /><br />
+                <!-- Formulario -->
+                <form id="formLogin" autocomplete="off" onsubmit="return false;">
 
-                    <div style="display:flex;justify-content:center">
-                        <img src="~/img/logo_cbf.png" class="img-responsive" style="width:270px;height:60px;" />
-                    </div>
-                    <div style="text-align:center; margin-top:8px; margin-bottom:15px;">
-                        <span style="font-weight:bold; color:#1ab394; font-size:15px; letter-spacing:1px;">PUNTO DE VENTA</span>
-                    </div>
-
-                    <!-- Honeypot -->
-                    <div aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden">
-                        <input type="text" name="username" tabindex="-1" autocomplete="username" />
-                        <input type="password" name="password" tabindex="-1" autocomplete="current-password" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>Usuario</label>
-                        <input id="txta" type="text" class="form-control" placeholder="Ingrese Usuario" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>Contraseña</label>
-                        <div class="password-wrap">
-                            <input id="txtb"
-                                   type="password"
-                                   class="form-control"
-                                   placeholder="Ingrese Contraseña"
-                                   autocomplete="new-password" />
-                            <button class="pass-toggle" id="btnTogglePass" type="button" aria-label="Mostrar/Ocultar">👁</button>
+                    <!-- Usuario -->
+                    <div class="form-group-custom">
+                        <label for="txta" class="form-label-custom">
+                            Usuario
+                        </label>
+                        <div class="input-icon-wrap">
+                            <input id="txta"
+                                   type="text"
+                                   class="form-control-custom"
+                                   placeholder="Ingrese su usuario"
+                                   autocomplete="off"
+                                   readonly
+                                   onfocus="this.removeAttribute('readonly')" />
+                            <i class="fa-solid fa-user input-icon-user"></i>
                         </div>
                     </div>
-                    <button id="btningresar" type="button" class="btn-login">Ingresar a Ventas</button>
-                    <br /><br />
-                    <div class="login-footer">
-                        <a href="https://cbf.com.pe/" target="_blank" rel="noreferrer">www.cbf.com.pe</a>
+
+                    <!-- Contraseña -->
+                    <div class="form-group-custom">
+                        <label for="txtb" class="form-label-custom">
+                            Contraseña
+                        </label>
+                        <div class="input-icon-wrap">
+                            <input id="txtb"
+                                   type="password"
+                                   class="form-control-custom"
+                                   placeholder="Ingrese su contraseña"
+                                   autocomplete="new-password" />
+                            <button id="btnTogglePass"
+                                    class="pass-toggle-btn"
+                                    type="button"
+                                    tabindex="-1"
+                                    aria-label="Mostrar/Ocultar contraseña">
+                                <i id="iconTogglePass" class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
+
+                    <!-- Botón Ingresar -->
+                    <button type="button"
+                            class="btn-submit-pv"
+                            id="btningresar">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        <span>Ingresar a Ventas</span>
+                    </button>
+
+                </form>
+
+                <!-- Footer Corporativo (Idéntico a Extranet) -->
+                <div class="login-footer text-center mt-1 pt-3">
+                    <a href="https://cbf.com.pe/"
+                       target="_blank"
+                       rel="noreferrer"
+                       class="footer-link">
+                        <i class="fa-solid fa-globe me-2"></i>
+                        Corporación BioFarmacéutica S.A.C.
+                        <span class="mx-2">|</span>
+                        www.cbf.com.pe
+                    </a>
                 </div>
+
             </div>
-        </section>
+
+        </div>
+
+        <!-- Panel Derecho: Carrusel de Imágenes -->
+        <div class="auth-panel-carousel">
+
+            <div class="carousel-slides-container">
+                <div class="carousel-slide-item is-active" style="background-image:url('/img/1.jpg')"></div>
+                <div class="carousel-slide-item" style="background-image:url('/img/2.jpg')"></div>
+                <div class="carousel-slide-item" style="background-image:url('/img/3.jpg')"></div>
+            </div>
+
+            <div class="carousel-dots-wrap" aria-label="Indicadores">
+                <button class="carousel-dot is-active" type="button" data-index="0" aria-label="Imagen 1"></button>
+                <button class="carousel-dot" type="button" data-index="1" aria-label="Imagen 2"></button>
+                <button class="carousel-dot" type="button" data-index="2" aria-label="Imagen 3"></button>
+            </div>
+
+        </div>
 
     </div>
+
+    <!-- Scripts base PVD -->
+    <script src="~/js/jquery/jquery-3.4.1.js?v=1.0.0"></script>
+    <script src="~/js/sweetalert2-7.26.12/package/dist/sweetalert2.js?v=1.0.0"></script>
+    <script src="~/Js/Bootstrap/jquery.session.js?v=1.0.0"></script>
+
+    <!-- Lógica de Autenticación PVD -->
+    <script src="~/js_modulos/seguridad/js_login_pv.js?v=1.0.1"></script>
+
+    <script>
+        // Carrusel automático con soporte interactivo
+        (function () {
+            var slides = document.querySelectorAll('.carousel-slide-item');
+            var dots = document.querySelectorAll('.carousel-dot');
+            var current = 0;
+            var intervalMs = 5000;
+            var timer = null;
+
+            function goTo(index) {
+                if (!slides.length) return;
+                slides[current].classList.remove('is-active');
+                if (dots[current]) dots[current].classList.remove('is-active');
+
+                current = (index + slides.length) % slides.length;
+
+                slides[current].classList.add('is-active');
+                if (dots[current]) dots[current].classList.add('is-active');
+            }
+
+            function next() {
+                goTo(current + 1);
+            }
+
+            function start() {
+                stop();
+                timer = setInterval(next, intervalMs);
+            }
+
+            function stop() {
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+            }
+
+            dots.forEach(function (dot, i) {
+                dot.addEventListener('click', function () {
+                    goTo(i);
+                    start();
+                });
+            });
+
+            if (slides.length) {
+                start();
+            }
+        })();
+
+        // Toggle para mostrar u ocultar contraseña
+        (function () {
+            var toggleBtn = document.getElementById("btnTogglePass");
+            var passInput = document.getElementById("txtb");
+            var icon = document.getElementById("iconTogglePass");
+
+            if (toggleBtn && passInput && icon) {
+                toggleBtn.addEventListener("click", function () {
+                    if (passInput.type === "password") {
+                        passInput.type = "text";
+                        icon.classList.remove("fa-eye");
+                        icon.classList.add("fa-eye-slash");
+                    } else {
+                        passInput.type = "password";
+                        icon.classList.remove("fa-eye-slash");
+                        icon.classList.add("fa-eye");
+                    }
+                });
+            }
+
+            var txta = document.getElementById("txta");
+            if (txta) {
+                setTimeout(function () {
+                    txta.focus();
+                }, 300);
+            }
+        })();
+    </script>
+
 </body>
 </html>
-
-<script>
-    (function () {
-        const txta = document.getElementById("txta");
-        if (txta) txta.focus();
-
-        const txtClave = document.getElementById("txtb");
-        const btnTogglePass = document.getElementById("btnTogglePass");
-        btnTogglePass?.addEventListener("click", function () {
-            const isPass = txtClave.getAttribute("type") === "password";
-            txtClave.setAttribute("type", isPass ? "text" : "password");
-            btnTogglePass.textContent = isPass ? "🙈" : "👁";
-        });
-
-        // Carrusel
-        const slides = Array.from(document.querySelectorAll(".slide"));
-        const dots = Array.from(document.querySelectorAll(".dot"));
-        const prevBtn = document.querySelector(".carousel-btn.prev");
-        const nextBtn = document.querySelector(".carousel-btn.next");
-        const carousel = document.querySelector(".carousel");
-
-        let idx = 0;
-        let timer = null;
-        const intervalMs = 2500;
-
-        function show(i) {
-            idx = (i + slides.length) % slides.length;
-            slides.forEach((s, k) => s.classList.toggle("is-active", k === idx));
-            dots.forEach((d, k) => d.classList.toggle("is-active", k === idx));
-        }
-
-        function next() { show(idx + 1); }
-        function prev() { show(idx - 1); }
-
-        nextBtn?.addEventListener("click", next);
-        prevBtn?.addEventListener("click", prev);
-
-        dots.forEach(d => d.addEventListener("click", () => show(parseInt(d.dataset.index, 10))));
-
-        function start() { stop(); timer = setInterval(next, intervalMs); }
-        function stop() { if (timer) clearInterval(timer); timer = null; }
-
-        carousel?.addEventListener("mouseenter", stop);
-        carousel?.addEventListener("mouseleave", start);
-
-        show(0);
-        start();
-    })();
-</script>
-
-<style>
-    .load {
-        display: none;
-        position: fixed;
-        z-index: 9999;
-        top: 0;
-        left: 0;
-        height: 100%;
-        width: 100%;
-        background: rgba(190, 190, 190, 0.4) url(/img/spinner.gif) 50% 50% no-repeat;
-        opacity: 0.9;
-    } 
-
-    body.loading {
-        overflow: hidden;
-    }
-
-    body.loading .load {
-        display: block;
-    }
-
-    input[type="password"]::-ms-reveal,
-    input[type="password"]::-ms-clear {
-        display: none !important;
-    }
-</style>

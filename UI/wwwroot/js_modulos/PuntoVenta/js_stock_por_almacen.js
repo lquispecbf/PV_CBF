@@ -4,6 +4,21 @@ $(document).ready(function () {
 
     PV.Core.inicializar();
 
+    var _puedeExportar = (function () {
+        if (!window.PERMISOS_PV) return true;
+        if (typeof window.PERMISOS_PV.puedeStockAlmacenExportar === 'boolean') {
+            return window.PERMISOS_PV.puedeStockAlmacenExportar;
+        }
+        if (typeof window.PERMISOS_PV.PuedeStockAlmacenExportar === 'boolean') {
+            return window.PERMISOS_PV.PuedeStockAlmacenExportar;
+        }
+        return true;
+    })();
+
+    if (!_puedeExportar) {
+        $("#btnStockExportar").hide();
+    }
+
     cargarAlmacenes();
     cargarListaPrecios();
 
@@ -23,6 +38,11 @@ $(document).ready(function () {
 
     $("#btnStockExportar").on("click", function (e) {
         e.preventDefault();
+
+        if (!_puedeExportar) {
+            Swal.fire({ type: "warning", title: "Acceso Denegado", text: "No cuenta con permisos para exportar el reporte de stock." });
+            return;
+        }
 
         PV.Utils.ejecutarAccion(function (reHabilitar) {
             $("#btnStockExportar").prop("disabled", true);
@@ -51,7 +71,7 @@ $(document).ready(function () {
                 error: function (xhr) {
                     if (xhr.status === 404) {
                         Swal.fire({ type: "warning", title: "Sin datos", text: "No se encontraron datos para exportar." });
-                    } else {
+                    } else if (xhr.status !== 403 && xhr.status !== 401) {
                         Swal.fire({ type: "error", title: "Error", text: "Error al exportar el reporte." });
                     }
                 },
@@ -201,12 +221,18 @@ function buscarStock(onComplete) {
             $("#tblStockPorAlmacen_wrapper").show();
         },
         error: function (xhr) {
+            tblStockPorAlmacen.clear().draw();
+            $("#tblStockPorAlmacen").hide();
+            $("#tblStockPorAlmacen_wrapper").hide();
+            $("#btnStockExportar").prop("disabled", true);
             var msg = "Error al buscar stock por almacén.";
             if (xhr.responseJSON && xhr.responseJSON.error) {
                 msg = xhr.responseJSON.error;
             }
             console.error(msg, xhr.responseText);
-            Swal.fire({ type: "error", title: "Error", text: msg });
+            if (xhr.status !== 403 && xhr.status !== 401) {
+                Swal.fire({ type: "error", title: "Error", text: msg });
+            }
         },
         complete: function () {
             $("body").removeClass("loading");

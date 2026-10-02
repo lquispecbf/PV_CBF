@@ -17,6 +17,7 @@ $(document).ready(function () {
     }
 
     inicializarTablaBusqueda();
+    aplicarPermisosEnVenta();
 
 
 
@@ -45,6 +46,29 @@ $(document).ready(function () {
     $("#btnBusquedaExportar").on("click", function (e) {
         e.preventDefault();
         if (!PV.Utils.puedeInteractuar()) return;
+
+        var puedeExportar = tienePermisoPv("puedeExportarExcel", true);
+        if (!puedeExportar) {
+            Swal.fire({
+                type: "warning",
+                title: "Acceso Denegado",
+                text: "No cuenta con permisos para exportar información a Excel."
+            });
+            $("#btnBusquedaExportar").prop("disabled", true).hide();
+            $("#btnBusquedaExportar").closest("div[class*='col-']").hide();
+            return;
+        }
+
+        var totalRegistros = (tblBusquedaVentas && typeof tblBusquedaVentas.rows === "function") ? tblBusquedaVentas.rows().count() : 0;
+        if (totalRegistros === 0) {
+            Swal.fire({
+                type: "warning",
+                title: "Sin datos",
+                text: "No hay información en la tabla para exportar."
+            });
+            $("#btnBusquedaExportar").prop("disabled", true);
+            return;
+        }
 
         if (rangoFechasInvalido()) {
             Swal.fire({
@@ -81,6 +105,16 @@ $(document).ready(function () {
                     URL.revokeObjectURL(url);
                 },
                 error: function (xhr) {
+                    if (xhr.status === 403) {
+                        Swal.fire({
+                            type: "warning",
+                            title: "Acceso Denegado",
+                            text: "No cuenta con permisos para exportar información a Excel."
+                        });
+                        $("#btnBusquedaExportar").prop("disabled", true).hide();
+                        $("#btnBusquedaExportar").closest("div[class*='col-']").hide();
+                        return;
+                    }
                     if (esErrorSesion(xhr)) return;
                     if (xhr.status === 404) {
                         Swal.fire({ type: "warning", title: "Sin datos", text: "No se encontraron datos para exportar." });
@@ -90,7 +124,9 @@ $(document).ready(function () {
                 },
                 complete: function () {
                     $("body").removeClass("loading");
-                    $("#btnBusquedaExportar").prop("disabled", false);
+                    var puedeExp = tienePermisoPv("puedeExportarExcel", true);
+                    var cant = (tblBusquedaVentas && typeof tblBusquedaVentas.rows === "function") ? tblBusquedaVentas.rows().count() : 0;
+                    $("#btnBusquedaExportar").prop("disabled", !puedeExp || cant === 0);
                     reHabilitar();
                 }
             });
@@ -152,7 +188,54 @@ $(document).ready(function () {
     });
 });
 
+function tienePermisoPv(clave, defaultVal) {
+    var p = window.PERMISOS_PV;
+    if (!p) return defaultVal !== undefined ? defaultVal : true;
+    var camel = clave.charAt(0).toLowerCase() + clave.slice(1);
+    var pascal = clave.charAt(0).toUpperCase() + clave.slice(1);
+    if (typeof p[camel] === "boolean") return p[camel];
+    if (typeof p[pascal] === "boolean") return p[pascal];
+    if (p[camel] !== undefined) return !!p[camel];
+    if (p[pascal] !== undefined) return !!p[pascal];
+
+    var mapaAcciones = {
+        "puedeVer": "VENTA.VER",
+        "puedeCrear": "VENTA.CREAR",
+        "puedeGuardarBorrador": "VENTA.GUARDAR_BORRADOR",
+        "puedeAnular": "VENTA.ANULAR",
+        "puedeAnularEnviadoWms": "VENTA.ANULAR_ENVIADO_WMS",
+        "puedeEnviarWms": "VENTA.ENVIAR_WMS",
+        "puedeReabrir": "VENTA.REABRIR",
+        "puedeModificarCondicionPago": "VENTA.MODIFICAR_COND_PAGO",
+        "mantenerSesion": "VENTA.MANTENER_SESION",
+        "puedeImprimir": "VENTA.IMPRIMIR",
+        "puedeExportarExcel": "VENTA.EXPORTAR_EXCEL",
+        "puedeStockAlmacenVer": "STOCK_ALMACEN.VER",
+        "puedeStockAlmacenExportar": "STOCK_ALMACEN.EXPORTAR",
+        "puedeClienteBloqueadoVer": "CLIENTE_BLOQUEADO.VER",
+        "puedeClienteBloqueadoGestionar": "CLIENTE_BLOQUEADO.GESTIONAR",
+        "puedeArticuloFraccionadoVer": "ARTICULO_FRACCIONADO.VER",
+        "puedeArticuloFraccionadoGestionar": "ARTICULO_FRACCIONADO.GESTIONAR"
+    };
+
+    var codigoAccion = mapaAcciones[camel] || mapaAcciones[pascal];
+    var listaAcciones = p.acciones || p.Acciones;
+    if (listaAcciones && Array.isArray(listaAcciones)) {
+        if (codigoAccion && listaAcciones.includes(codigoAccion.toUpperCase())) return true;
+        if (listaAcciones.includes(clave.toUpperCase())) return true;
+        return false;
+    }
+
+    return defaultVal !== undefined ? defaultVal : false;
+}
+
 function inicializarTablaBusqueda() {
+    var puedeAnular = tienePermisoPv("puedeAnular", true);
+    var puedeCrear = tienePermisoPv("puedeCrear", true);
+    var esSoloLectura = tienePermisoPv("esSoloLectura", false);
+    var puedeReabrir = tienePermisoPv("puedeReabrir", true) && puedeCrear && !esSoloLectura;
+    var puedeModificarCondPago = tienePermisoPv("puedeModificarCondicionPago", !!window.PUEDE_MODIFICAR_CONDICION_PAGO);
+
     tblBusquedaVentas = $("#tblBusquedaVentas").DataTable({
         data: [],
         autoWidth: false,
@@ -171,7 +254,8 @@ function inicializarTablaBusqueda() {
                 orderable: false,
                 searchable: false,
                 className: "text-center",
-                width: "50px"
+                width: "50px",
+                visible: puedeAnular
             },
             {
                 data: null,
@@ -179,7 +263,8 @@ function inicializarTablaBusqueda() {
                 orderable: false,
                 searchable: false,
                 className: "text-center",
-                width: "50px"
+                width: "50px",
+                visible: puedeReabrir
             },
             {
                 data: null,
@@ -187,7 +272,7 @@ function inicializarTablaBusqueda() {
                 searchable: false,
                 className: "text-center",
                 width: "50px",
-                visible: !!window.PUEDE_MODIFICAR_CONDICION_PAGO,
+                visible: puedeModificarCondPago,
                 render: function (data, type, row) {
                     var estado = (row.ESTADO_ENVIO || "").toUpperCase().trim();
                     var docStatus = (row.DOCSTATUS || "").toUpperCase().trim();
@@ -480,10 +565,62 @@ function actualizarBarraAccionesBusqueda() {
     var haySeleccion = $("#tblBusquedaVentas tbody tr.row-selected").length > 0;
     var data = obtenerFilaSeleccionadaBusqueda();
     var esBorrador = !!data && (data.DOCSTATUS || "").trim() === "E";
-    ["#btnBusquedaImprimir", "#btnBusquedaAcciones"].forEach(function (sel) {
-        $(sel).prop("disabled", !haySeleccion);
-    });
-    $("#btnBusquedaEnviarWms").prop("disabled", !haySeleccion || !data || !(data.DOCENTRY_SAP > 0));
+    var puedeImprimir = tienePermisoPv("puedeImprimir", true);
+    var puedeEnviarWms = tienePermisoPv("puedeEnviarWms", true);
+
+    $("#btnBusquedaImprimir").prop("disabled", !haySeleccion || !puedeImprimir);
+    $("#btnBusquedaAcciones").prop("disabled", !haySeleccion);
+    $("#btnBusquedaEnviarWms").prop("disabled", !haySeleccion || !data || !(data.DOCENTRY_SAP > 0) || !puedeEnviarWms);
+}
+
+function aplicarPermisosEnVenta() {
+    var puedeCrear = tienePermisoPv("puedeCrear", true);
+    var esSoloLectura = tienePermisoPv("esSoloLectura", false);
+    var puedeGuardarBorrador = tienePermisoPv("puedeGuardarBorrador", true);
+    var puedeExportar = tienePermisoPv("puedeExportarExcel", true);
+    var puedeEnviarWms = tienePermisoPv("puedeEnviarWms", true);
+
+    // Si el usuario es de solo consulta o no tiene permiso de creación
+    if (!puedeCrear || esSoloLectura) {
+        // Asegurar que el tab activo sea Búsqueda
+        if (typeof PV.Core !== "undefined" && typeof PV.Core.conmutarTab === "function") {
+            PV.Core.conmutarTab("#tab-1");
+        } else {
+            $('a[data-pv-tab="main"][href="#tab-1"]').tab("show");
+        }
+
+        // Ocultar pestaña Venta
+        $('a[data-pv-tab="main"][href="#tab-2"]').closest("li").hide();
+        $("#tab-2").removeClass("active show");
+
+        // Deshabilitar y ocultar botones de mutación y limpieza manual
+        $("#btnVentaLimpiar, #btnVentaGuardar, #btnVentaBorrador, #btnVentaImportarArticulo, #btnBorradoresLocales").prop("disabled", true).hide();
+        $("#btnVentaLimpiar").closest("div[class*='col-']").hide();
+    } else {
+        // Si tiene permiso de crear, validar permiso específico de guardar borradores
+        if (!puedeGuardarBorrador) {
+            $("#btnVentaBorrador, #btnBorradoresLocales").prop("disabled", true).hide();
+            $("#btnVentaBorrador").closest("div[class*='col-']").hide();
+        } else {
+            $("#btnVentaBorrador, #btnBorradoresLocales").prop("disabled", false).show();
+            $("#btnVentaBorrador").closest("div[class*='col-']").show();
+        }
+    }
+
+    if (!puedeExportar) {
+        $("#btnBusquedaExportar").prop("disabled", true).hide();
+        $("#btnBusquedaExportar").closest("div[class*='col-']").hide();
+    } else {
+        var totalRegistros = (tblBusquedaVentas && typeof tblBusquedaVentas.rows === "function") ? tblBusquedaVentas.rows().count() : 0;
+        $("#btnBusquedaExportar").prop("disabled", totalRegistros === 0).show();
+        $("#btnBusquedaExportar").closest("div[class*='col-']").show();
+    }
+
+    if (!puedeEnviarWms) {
+        $("#btnBusquedaEnviarWms").hide();
+    } else {
+        $("#btnBusquedaEnviarWms").show();
+    }
 }
 
 function rangoFechasInvalido() {
@@ -512,6 +649,7 @@ function buscarVentas(onComplete) {
         data: JSON.stringify(filtro),
         beforeSend: function () {
             $("#tblBusquedaVentas_wrapper").hide();
+            $("#btnBusquedaExportar").prop("disabled", true);
             $("body").addClass("loading");
         },
         success: function (data) {
@@ -523,8 +661,24 @@ function buscarVentas(onComplete) {
             tblBusquedaVentas.order([17, "desc"]).draw();
             $("#tblBusquedaVentas").show();
             $("#tblBusquedaVentas_wrapper").show();
+
+            var puedeExportar = tienePermisoPv("puedeExportarExcel", true);
+            var tieneDatos = Array.isArray(data) && data.length > 0;
+            if (puedeExportar) {
+                $("#btnBusquedaExportar").prop("disabled", !tieneDatos).show();
+                $("#btnBusquedaExportar").closest("div[class*='col-']").show();
+            } else {
+                $("#btnBusquedaExportar").prop("disabled", true).hide();
+                $("#btnBusquedaExportar").closest("div[class*='col-']").hide();
+            }
         },
         error: function (xhr) {
+            tblBusquedaVentas.clear().draw();
+            $("#tblBusquedaVentas").hide();
+            $("#tblBusquedaVentas_wrapper").hide();
+            $("#tblBusquedaVentas tbody tr.row-selected").removeClass("row-selected");
+            actualizarBarraAccionesBusqueda();
+            $("#btnBusquedaExportar").prop("disabled", true);
             if (esErrorSesion(xhr)) return;
             var msg = "Error al buscar ventas.";
             if (xhr.responseJSON && xhr.responseJSON.error) {
@@ -551,30 +705,123 @@ function obtenerFilaSeleccionadaBusqueda() {
     return data && data.DOCENTRY ? data : null;
 }
 
-function abrirReportePdfPost(url, data) {
-    var form = document.createElement("form");
-    form.method = "POST";
-    form.action = url;
-    form.target = "_blank";
-    form.style.display = "none";
-
-    for (var key in data) {
-        if (data.hasOwnProperty(key) && data[key] !== null && data[key] !== undefined) {
-            var input = document.createElement("input");
-            input.type = "hidden";
-            input.name = key;
-            input.value = data[key];
-            form.appendChild(input);
-        }
+function abrirReportePdf(url, data, callbackExito) {
+    if (!tienePermisoPv("puedeImprimir", true)) {
+        Swal.fire({
+            type: "warning",
+            title: "Acceso Denegado",
+            text: "No cuenta con permisos para imprimir reportes o tickets."
+        });
+        return;
     }
 
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
+    $("body").addClass("loading");
+
+    $.ajax({
+        url: url,
+        type: "POST",
+        data: data,
+        xhrFields: { responseType: "blob" },
+        success: function (blob) {
+            $("body").removeClass("loading");
+            if (!blob || blob.size === 0) {
+                Swal.fire({
+                    type: "warning",
+                    title: "Sin contenido",
+                    text: "No se pudo obtener el archivo del reporte."
+                });
+                return;
+            }
+
+            var blobUrl = URL.createObjectURL(blob);
+            var win = window.open(blobUrl, "_blank");
+            if (win) {
+                win.focus();
+            } else {
+                var a = document.createElement("a");
+                a.href = blobUrl;
+                a.target = "_blank";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+
+            if (typeof callbackExito === "function") {
+                callbackExito();
+            }
+        },
+        error: function (xhr) {
+            $("body").removeClass("loading");
+
+            if (xhr.status === 403) {
+                Swal.fire({
+                    type: "warning",
+                    title: "Acceso Denegado",
+                    text: "No cuenta con permisos para imprimir reportes o tickets."
+                });
+                return;
+            }
+
+            if (xhr.status === 404) {
+                Swal.fire({
+                    type: "warning",
+                    title: "Sin datos",
+                    text: "No se encontró la información de la venta para generar el reporte."
+                });
+                return;
+            }
+
+            if (xhr.response instanceof Blob) {
+                var reader = new FileReader();
+                reader.onload = function () {
+                    var errorMsg = "Error al generar el reporte.";
+                    try {
+                        var json = JSON.parse(reader.result);
+                        if (json && json.error) errorMsg = json.error;
+                    } catch (e) {
+                        if (reader.result && reader.result.length < 200) errorMsg = reader.result;
+                    }
+                    Swal.fire({
+                        type: "error",
+                        title: "Error",
+                        text: errorMsg
+                    });
+                };
+                reader.onerror = function () {
+                    Swal.fire({
+                        type: "error",
+                        title: "Error",
+                        text: "Error al generar el reporte PDF."
+                    });
+                };
+                reader.readAsText(xhr.response);
+                return;
+            }
+
+            var msg = "Error al generar el reporte PDF.";
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                msg = xhr.responseJSON.error;
+            }
+            Swal.fire({
+                type: "error",
+                title: "Error",
+                text: msg
+            });
+        }
+    });
 }
 
 function imprimirTicketDesdeBusqueda() {
     if (PV.Utils._procesando) return;
+
+    if (!tienePermisoPv("puedeImprimir", true)) {
+        Swal.fire({
+            type: "warning",
+            title: "Acceso Denegado",
+            text: "No cuenta con permisos para imprimir tickets."
+        });
+        return;
+    }
 
     var data = obtenerFilaSeleccionadaBusqueda();
     if (!data) return;
@@ -591,7 +838,7 @@ function imprimirTicketDesdeBusqueda() {
         return;
     }
 
-    abrirReportePdfPost("/PuntoVenta/Ticket_Venta", {
+    abrirReportePdf("/PuntoVenta/Ticket_Venta", {
         docEntrySap: docEntrySap,
         nroSap: nroSap
     });
@@ -599,6 +846,15 @@ function imprimirTicketDesdeBusqueda() {
 
 function imprimirPreliminarSapDesdeBusqueda() {
     if (PV.Utils._procesando) return;
+
+    if (!tienePermisoPv("puedeImprimir", true)) {
+        Swal.fire({
+            type: "warning",
+            title: "Acceso Denegado",
+            text: "No cuenta con permisos para ver preliminares SAP."
+        });
+        return;
+    }
 
     var data = obtenerFilaSeleccionadaBusqueda();
     if (!data) return;
@@ -617,7 +873,7 @@ function imprimirPreliminarSapDesdeBusqueda() {
         return;
     }
 
-    abrirReportePdfPost("/PuntoVenta/PreliminarSap_Venta", {
+    abrirReportePdf("/PuntoVenta/PreliminarSap_Venta", {
         docEntrySap: docEntrySap,
         docEntryOwtr: docEntryOwtr,
         whs: whs,
@@ -627,6 +883,15 @@ function imprimirPreliminarSapDesdeBusqueda() {
 
 function imprimirDesdeBusqueda() {
     if (PV.Utils._procesando) return;
+
+    if (!tienePermisoPv("puedeImprimir", true)) {
+        Swal.fire({
+            type: "warning",
+            title: "Acceso Denegado",
+            text: "No cuenta con permisos para imprimir pedidos."
+        });
+        return;
+    }
 
     var data = obtenerFilaSeleccionadaBusqueda();
     if (!data) return;
@@ -667,22 +932,31 @@ function imprimirDesdeBusqueda() {
     }).then(function (result) {
         if (!result.value) return;
 
-        abrirReportePdfPost("/PuntoVenta/Imprimir_Venta", {
+        abrirReportePdf("/PuntoVenta/Imprimir_Venta", {
             docEntrySap: docEntrySap,
             docEntryOwtr: docEntryOwtr,
             whs: whs,
             docEntry: docEntry,
             nroSap: nroSap
+        }, function () {
+            setTimeout(function () {
+                buscarVentas();
+            }, 1000);
         });
-
-        setTimeout(function () {
-            buscarVentas();
-        }, 1000);
     });
 }
 
 function imprimirPreliminarPvDesdeBusqueda() {
     if (PV.Utils._procesando) return;
+
+    if (!tienePermisoPv("puedeImprimir", true)) {
+        Swal.fire({
+            type: "warning",
+            title: "Acceso Denegado",
+            text: "No cuenta con permisos para ver preliminares PV."
+        });
+        return;
+    }
 
     var data = obtenerFilaSeleccionadaBusqueda();
     if (!data) return;
@@ -699,7 +973,7 @@ function imprimirPreliminarPvDesdeBusqueda() {
         return;
     }
 
-    abrirReportePdfPost("/PuntoVenta/PreliminarPv_Venta", {
+    abrirReportePdf("/PuntoVenta/PreliminarPv_Venta", {
         docEntry: docEntry,
         whs: whs
     });
@@ -1009,6 +1283,17 @@ $(document).on("click", ".btn-anular-venta", function () {
 $(document).on("click", ".btn-reabrir-venta", function () {
     if (!PV.Utils.puedeInteractuar()) return;
     var $btn = $(this);
+
+    var puedeCrear = tienePermisoPv("puedeCrear", true);
+    var esSoloLectura = tienePermisoPv("esSoloLectura", false);
+    if (!puedeCrear || esSoloLectura) {
+        Swal.fire({
+            type: "warning",
+            title: "Acceso denegado",
+            text: "Su usuario no cuenta con autorización para crear o modificar ventas."
+        });
+        return;
+    }
 
     PV.confirmarNavegacion(function () {
         var data = tblBusquedaVentas.row($btn.closest("tr")).data();
@@ -1500,6 +1785,17 @@ function fijarListaPrecio(priceList) {
 }
 
 function cargarVentaEditable(resp, docStatus, estadoEnvio) {
+    var puedeCrear = tienePermisoPv("puedeCrear", true);
+    var esSoloLectura = tienePermisoPv("esSoloLectura", false);
+    if (!puedeCrear || esSoloLectura) {
+        Swal.fire({
+            type: "warning",
+            title: "Acceso denegado",
+            text: "Su usuario no cuenta con autorización para crear o modificar ventas."
+        });
+        return;
+    }
+
     if (PV.Core && typeof PV.Core.limpiarFormularioParaCarga === "function") {
         PV.Core.limpiarFormularioParaCarga();
     }

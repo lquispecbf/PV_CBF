@@ -102,6 +102,7 @@ namespace UI.Controllers
 
                 if (!estado)
                 {
+                    HttpContext.Session.Clear();
                     return Json(new
                     {
                         Estado = false,
@@ -155,11 +156,25 @@ namespace UI.Controllers
                     HttpContext.Session.SetString("SESSION_PERMISOS", permisos.ToString());
                 }
 
+                var permisosPvToken = jsonResult["PermisosPv"] ?? jsonResult["permisosPv"];
+                BE.Seguridad.PermisosPuntoVentaDTO? permisosPv = null;
+                if (permisosPvToken != null)
+                {
+                    permisosPv = permisosPvToken.ToObject<BE.Seguridad.PermisosPuntoVentaDTO>();
+                    HttpContext.Session.SetString("SESSION_PERMISOS_PV_JSON", JsonConvert.SerializeObject(permisosPv));
+                    HttpContext.Session.SetString("SESSION_ROL_PV", permisosPv?.CodigoRolPv ?? "");
+                    HttpContext.Session.SetString("SESSION_ES_ADMIN_PV", (permisosPv?.EsAdministrador == true) ? "1" : "0");
+                }
+
+                string urlInicial = jsonResult["UrlInicial"]?.Value<string>() ?? jsonResult["urlInicial"]?.Value<string>() ?? "/PuntoVenta/Venta";
+
                 return Json(new
                 {
                     Estado = true,
                     Mensaje = mensaje,
                     Usuario = listaUsuarios,
+                    UrlInicial = urlInicial,
+                    PermisosPv = permisosPv,
                     MantenerSesion = mantenerSesion,
                     PuedeAnularEnviadoWms = puedeAnularWms,
                     RolCondicionPago = rolCondicionPago
@@ -256,6 +271,8 @@ namespace UI.Controllers
                 SESSION_DIAS_CLAVE = HttpContext.Session.GetString("SESSION_DIAS_CLAVE") ?? "999",
                 SESSION_PROXIMO_VENCER = HttpContext.Session.GetString("SESSION_PROXIMO_VENCER") ?? "0",
                 SESSION_MANTENER_SESION = HttpContext.Session.GetString("SESSION_MANTENER_SESION") ?? "0",
+                SESSION_ROL_PV = HttpContext.Session.GetString("SESSION_ROL_PV") ?? "",
+                SESSION_ES_ADMIN_PV = HttpContext.Session.GetString("SESSION_ES_ADMIN_PV") ?? "0",
                 SESSION_CODIGO_VENDEDOR_SAP = HttpContext.Session.GetInt32("SESSION_CODIGO_VENDEDOR_SAP") ?? 0
             });
         }
@@ -291,6 +308,12 @@ namespace UI.Controllers
                     StatusCode = 200
                 };
             }
+        }
+
+        [HttpGet]
+        public IActionResult AccesoDenegado()
+        {
+            return View("~/Views/Seguridad/AccesoDenegado.cshtml");
         }
     }
 }

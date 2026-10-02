@@ -9,7 +9,7 @@ namespace UI.Controllers
             var idUsuario = HttpContext.Session.GetString("SESSION_ID_USUARIO");
             if (string.IsNullOrWhiteSpace(idUsuario))
             {
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Seguridad");
             }
 
             return RedirectToAction("Venta", "PuntoVenta");

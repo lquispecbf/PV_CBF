@@ -301,4 +301,18 @@
     </div>
 </div>
 
-<script src="~/js_modulos/PuntoVenta/js_articulo_fraccionado.js?v=1.1.0"></script>
+<script>
+    window.PERMISOS_PV = @Html.Raw(ViewBag.PermisosPvJson ?? "{}");
+    (function() {
+        var p = window.PERMISOS_PV || {};
+        for (var k in p) {
+            if (p.hasOwnProperty(k)) {
+                var lowerK = k.charAt(0).toLowerCase() + k.slice(1);
+                var upperK = k.charAt(0).toUpperCase() + k.slice(1);
+                if (p[lowerK] === undefined) p[lowerK] = p[k];
+                if (p[upperK] === undefined) p[upperK] = p[k];
+            }
+        }
+    })();
+</script>
+<script src="~/js_modulos/PuntoVenta/js_articulo_fraccionado.js?v=1.1.2"></script>

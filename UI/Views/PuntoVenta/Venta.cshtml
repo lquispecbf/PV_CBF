@@ -1,6 +1,9 @@
 @{
     ViewData["Title"] = "Punto de Venta";
     Layout = "~/Views/Shared/MasterPage.cshtml";
+    var permisosPv = ViewBag.PermisosPv as BE.Seguridad.PermisosPuntoVentaDTO;
+    var puedeCrear = permisosPv?.PuedeCrear ?? true;
+    var esSoloLectura = permisosPv?.EsSoloLectura ?? false;
 }
 <div class="row wrapper border-bottom white-bg page-heading">
     <div class="col-lg-10">
@@ -29,9 +32,12 @@
                 <li class="nav-item">
                     <a class="nav-link pl-2 pr-2 active" data-pv-tab="main" href="#tab-1"> <i class="fas fa-search mr-1"></i> BÚSQUEDA</a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link pl-2 pr-2" data-pv-tab="main" href="#tab-2"><i class="fas fa-shopping-cart mr-1"></i>VENTA</a>
-                </li>
+                @if (puedeCrear && !esSoloLectura)
+                {
+                    <li class="nav-item">
+                        <a class="nav-link pl-2 pr-2" data-pv-tab="main" href="#tab-2"><i class="fas fa-shopping-cart mr-1"></i>VENTA</a>
+                    </li>
+                }
             </ul>
             <div class="tab-content">
                 <!-- TAB BUSQUEDA -->
@@ -91,7 +97,7 @@
                                                     class="btn btn-sm w-100 btn-custom btn-buscar-tab"
                                                     style="height: calc(1.8125rem + 2px);"
                                                     title="Buscar">
-                                                <i class="fa fa-magnifying-glass"></i><span class="d-inline d-lg-none d-xl-inline"> Buscar</span>
+                                                <i class="fa fa-search"></i><span class="d-inline d-lg-none d-xl-inline"> Buscar</span>
                                             </button>
                                         </div>
 
@@ -100,7 +106,8 @@
                                                     type="button"
                                                     class="btn btn-sm w-100"
                                                     style="background-color:#f3af5e;color:#fff;border-color:#f3af5e;height: calc(1.8125rem + 2px);"
-                                                    title="Exportar Excel (F6)">
+                                                    title="Exportar Excel (F6)"
+                                                    disabled>
                                                 <i class="fa fa-file-excel"></i><span class="d-inline d-lg-none d-xl-inline"> Exportar (F6)</span>
                                             </button>
                                         </div>
@@ -225,26 +232,29 @@
                                         <i class="fa fa-folder-open"></i> Borradores <span id="badgeBorradoresCount" class="badge badge-light" style="display:none;margin-left:2px;">0</span>
                                     </button>
                                 </div>
-                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
-                                    <button id="btnVentaLimpiar" class="btn btn-sm btn-custom btn-block" style="background-color:#f3af5e;color:#fff;border-color:#f3af5e;" title="Limpiar (F9)">
-                                        <i class="fa fa-eraser"></i> Limpiar <small style="color:inherit;">(F9)</small>
-                                    </button>
-                                </div>
-                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
-                                    <button id="btnVentaGuardar" class="btn btn-success btn-sm btn-custom btn-block" title="Guardar Venta (F10)">
-                                        <i class="fa fa-save"></i> Guardar Venta <small style="color:inherit;">(F10)</small>
-                                    </button>
-                                </div>
-                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
-                                    <button id="btnVentaBorrador" class="btn btn-sm btn-custom btn-block" style="background-color:#6c757d;color:#fff;border-color:#6c757d;" title="Guardar Borrador (F11)">
-                                        <i class="fa fa-save"></i> Guardar Borrador <small style="color:inherit;">(F11)</small>
-                                    </button>
-                                </div>
-                                <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
-                                    <button id="btnVentaImportarArticulo" class="btn btn-sm btn-custom btn-block" style="background-color:#5dade2;color:#fff;border-color:#5dade2;" title="Importar Articulo (F12)">
-                                        <i class="fa fa-file-excel"></i> Importar Articulo <small style="color:inherit;">(F12)</small>
-                                    </button>
-                                </div>
+                                @if (puedeCrear && !esSoloLectura)
+                                {
+                                    <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                        <button id="btnVentaLimpiar" class="btn btn-sm btn-custom btn-block" style="background-color:#f3af5e;color:#fff;border-color:#f3af5e;" title="Limpiar (F9)">
+                                            <i class="fa fa-eraser"></i> Limpiar <small style="color:inherit;">(F9)</small>
+                                        </button>
+                                    </div>
+                                    <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                        <button id="btnVentaGuardar" class="btn btn-success btn-sm btn-custom btn-block" title="Guardar Venta (F10)">
+                                            <i class="fa fa-save"></i> Guardar Venta <small style="color:inherit;">(F10)</small>
+                                        </button>
+                                    </div>
+                                    <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                        <button id="btnVentaBorrador" class="btn btn-sm btn-custom btn-block" style="background-color:#6c757d;color:#fff;border-color:#6c757d;" title="Guardar Borrador (F11)">
+                                            <i class="fa fa-save"></i> Guardar Borrador <small style="color:inherit;">(F11)</small>
+                                        </button>
+                                    </div>
+                                    <div class="col-12 col-sm-6 col-md-6 col-lg mb-1">
+                                        <button id="btnVentaImportarArticulo" class="btn btn-sm btn-custom btn-block" style="background-color:#5dade2;color:#fff;border-color:#5dade2;" title="Importar Articulo (F12)">
+                                            <i class="fa fa-file-excel"></i> Importar Articulo <small style="color:inherit;">(F12)</small>
+                                        </button>
+                                    </div>
+                                }
                             </div>
                         </div>
 
@@ -2071,15 +2081,27 @@
 <script>
     window.PUEDE_ANULAR_ENVIADO_WMS = @((ViewBag.PuedeAnularEnviadoWms ?? false).ToString().ToLower());
     window.PUEDE_MODIFICAR_CONDICION_PAGO = @((ViewBag.PuedeModificarCondicionPago ?? false).ToString().ToLower());
+    window.PERMISOS_PV = @Html.Raw(ViewBag.PermisosPvJson ?? "{}");
+    (function() {
+        var p = window.PERMISOS_PV || {};
+        for (var k in p) {
+            if (p.hasOwnProperty(k)) {
+                var lowerK = k.charAt(0).toLowerCase() + k.slice(1);
+                var upperK = k.charAt(0).toUpperCase() + k.slice(1);
+                if (p[lowerK] === undefined) p[lowerK] = p[k];
+                if (p[upperK] === undefined) p[upperK] = p[k];
+            }
+        }
+    })();
 </script>
-<script         src="~/js_modulos/PuntoVenta/pv.core.js?v=1.0.0"></script>
-<script    src="~/js_modulos/PuntoVenta/pv.catalogos.js?v=1.0.0"></script>
-<script      src="~/js_modulos/PuntoVenta/pv.cliente.js?v=1.0.0"></script>
-<script      src="~/js_modulos/PuntoVenta/pv.detalle.js?v=1.0.0"></script>
-<script      src="~/js_modulos/PuntoVenta/pv.hotkeys.js?v=1.0.0"></script>
-<script src="~/js_modulos/PuntoVenta/pv.validaciones.js?v=1.0.0"></script>
-<script       src="~/js_modulos/PuntoVenta/pv.drafts.js?v=1.0.0"></script>
-<script        src="~/js_modulos/PuntoVenta/js_venta.js?v=1.0.0"></script>
+<script src="~/js_modulos/PuntoVenta/pv.core.js?v=1.0.3"></script>
+<script src="~/js_modulos/PuntoVenta/pv.catalogos.js?v=1.0.3"></script>
+<script src="~/js_modulos/PuntoVenta/pv.cliente.js?v=1.0.3"></script>
+<script src="~/js_modulos/PuntoVenta/pv.detalle.js?v=1.0.3"></script>
+<script src="~/js_modulos/PuntoVenta/pv.hotkeys.js?v=1.0.3"></script>
+<script src="~/js_modulos/PuntoVenta/pv.validaciones.js?v=1.0.3"></script>
+<script src="~/js_modulos/PuntoVenta/pv.drafts.js?v=1.0.3"></script>
+<script src="~/js_modulos/PuntoVenta/js_venta.js?v=1.0.3"></script>
 <script>
     $(document).on("click", "#side-menu a[href]", function (e) {
         var href = $(this).attr("href");

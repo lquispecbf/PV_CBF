@@ -142,8 +142,9 @@ $(document).ready(function () {
                         window.location.href = "/Seguridad/Cambio_Clave";
                     });
                 } else {
-                    // Redirección directa al módulo principal de Punto de Venta
-                    window.location.href = "/PuntoVenta/Venta";
+                    // Redirección al módulo inicial autorizado de Punto de Venta
+                    var destino = respuesta.UrlInicial || respuesta.urlInicial || "/PuntoVenta/Venta";
+                    window.location.href = destino;
                 }
             },
             error: function () {

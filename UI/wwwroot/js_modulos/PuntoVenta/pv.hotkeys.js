@@ -45,6 +45,13 @@ PV.Hotkeys = (function () {
                 e.ctrlKey && !e.altKey && !e.shiftKey &&
                 (e.key.toLowerCase() === "d" || e.key === "Delete")) {
 
+                var permPv = window.PERMISOS_PV || {};
+                var noPuedeCrear = (permPv.puedeCrear === false || permPv.PuedeCrear === false || permPv.esSoloLectura === true || permPv.EsSoloLectura === true);
+                if (noPuedeCrear) {
+                    e.preventDefault();
+                    return;
+                }
+
                 var $filaActual = $(document.activeElement).closest("#tblVentaDetalle tbody tr");
                 if ($filaActual.length > 0 && PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && !PV.Detalle.isReadOnly()) {
                     var $btnEliminar = $filaActual.find(".btn-detalle-eliminar");
@@ -124,6 +131,12 @@ PV.Hotkeys = (function () {
             }
 
             if ($("#tab-2").hasClass("active") && ["F9", "F10", "F11", "F12"].includes(e.key)) {
+                var permPv = window.PERMISOS_PV || {};
+                var noPuedeCrear = (permPv.puedeCrear === false || permPv.PuedeCrear === false || permPv.esSoloLectura === true || permPv.EsSoloLectura === true);
+                if (noPuedeCrear) {
+                    e.preventDefault();
+                    return;
+                }
                 if (!PV.Utils.puedeInteractuar()) return;
                 e.preventDefault();
 
@@ -163,7 +176,9 @@ PV.Hotkeys = (function () {
 
                 switch (e.key) {
                     case "F6":
-                        $("#btnBusquedaExportar").trigger("click");
+                        if (!$("#btnBusquedaExportar").is(":disabled") && $("#btnBusquedaExportar").is(":visible")) {
+                            $("#btnBusquedaExportar").trigger("click");
+                        }
                         break;
                     case "F7":
                         if (!$("#btnBusquedaImprimir").is(":disabled")) {

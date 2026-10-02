@@ -106,7 +106,8 @@ PV.Validaciones = (function () {
             }
         }
 
-        const lugarEntregaText = $("#ddlLogisticaLugarEntrega option:selected").text().toUpperCase();
+        const lugarEntregaText = ($("#ddlLogisticaLugarEntrega option:selected").text() || "").trim().toUpperCase();
+        const formaPagoText = ($("#ddlFinancieroFormaPago option:selected").text() || "").trim().toUpperCase();
 
         if (lugarEntregaText === "AGENCIA") {
             if (!$("#txtLogisticaAgencia").val()) errores.push("Debe ingresar la agencia.");
@@ -114,6 +115,10 @@ PV.Validaciones = (function () {
             if (!$("#txtLogisticaContactoNombre").val()) errores.push("Debe ingresar el nombre de contacto.");
             if (!$("#txtLogisticaTelefono").val()) errores.push("Debe ingresar el teléfono.");
             if (!$("#txtLogisticaLugarEnvio").val()) errores.push("Debe ingresar el lugar de envío.");
+
+            if (formaPagoText.indexOf("CONTRA ENTREGA") !== -1 || formaPagoText.indexOf("CONTRAENTREGA") !== -1) {
+                errores.push("Incompatibilidad comercial: Cuando el Lugar de Entrega es AGENCIA, no se permite la forma de pago CONTRA ENTREGA.");
+            }
         }
 
         if (!$("#ddlFinancieroFormaPago").val()) errores.push("Debe seleccionar una forma de pago.");
@@ -777,6 +782,14 @@ PV.Validaciones = (function () {
 
     async function guardarBorrador() {
         if (!PV.Utils.puedeInteractuar()) return;
+        if (typeof tienePermisoPv === "function" && !tienePermisoPv("puedeGuardarBorrador", true)) {
+            Swal.fire({
+                type: "warning",
+                title: "Acceso Denegado",
+                text: "No cuenta con permisos para guardar borradores de venta."
+            });
+            return;
+        }
         if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
 
         var bloqueado = await revalidarClienteBloqueado();

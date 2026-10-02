@@ -2,6 +2,21 @@ $(document).ready(function () {
 
     var tblClientes = null;
 
+    var _puedeGestionar = (function () {
+        if (!window.PERMISOS_PV) return true;
+        if (typeof window.PERMISOS_PV.puedeClienteBloqueadoGestionar === 'boolean') {
+            return window.PERMISOS_PV.puedeClienteBloqueadoGestionar;
+        }
+        if (typeof window.PERMISOS_PV.PuedeClienteBloqueadoGestionar === 'boolean') {
+            return window.PERMISOS_PV.PuedeClienteBloqueadoGestionar;
+        }
+        return true;
+    })();
+
+    if (!_puedeGestionar) {
+        $('#imgmas, #btnnuevo, #btnimportar').hide();
+    }
+
     inicializarTabla();
     registrarEventos();
     $('#txtBuscarCliente').focus();
@@ -35,12 +50,14 @@ $(document).ready(function () {
                 { data: "FECHAHORA_CREACION", title: "FECHA CREACIÓN", width: "120px", visible: false },
                 {
                     data: null, title: "EDITAR", className: "text-center", width: "60px",
+                    visible: _puedeGestionar,
                     render: function () {
                         return '<img src="../img/editar_2.png" class="btnEditar" style="width:20px;height:20px;cursor:pointer;" title="Editar" />';
                     }
                 },
                 {
                     data: "ESTADO", title: "ELIMINAR", className: "text-center", width: "60px",
+                    visible: _puedeGestionar,
                     render: function (data) {
                         if (data) {
                             return '<img src="../img/eliminar.png" class="btnEliminar" style="width:20px;height:20px;cursor:pointer;" title="Desbloquear cliente" />';
@@ -205,12 +222,21 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 $('body').removeClass('loading');
-                Swal.fire({ type: 'error', title: 'Error', text: 'Error al buscar clientes bloqueados.' });
+                tblClientes.clear().draw();
+                $('#contenedorTabla').hide();
+                $('#btnexportar').prop('disabled', true);
+                if (xhr.status !== 403 && xhr.status !== 401) {
+                    Swal.fire({ type: 'error', title: 'Error', text: 'Error al buscar clientes bloqueados.' });
+                }
             }
         });
     }
 
     function NUEVO() {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para registrar o gestionar clientes bloqueados.' });
+            return;
+        }
         _clienteSeleccionado = false;
         $('#txtIdClienteBloqueado').val(0);
         $('#tituloModal').html('<strong>Nuevo Cliente Bloqueado</strong>');
@@ -225,6 +251,10 @@ $(document).ready(function () {
     }
 
     function EDITAR(id) {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para modificar clientes bloqueados.' });
+            return;
+        }
         $('body').addClass('loading');
 
         $.ajax({
@@ -270,6 +300,10 @@ $(document).ready(function () {
     }
 
     function GUARDAR() {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para registrar o modificar clientes bloqueados.' });
+            return;
+        }
         var id = parseInt($('#txtIdClienteBloqueado').val()) || 0;
         var carcode = ($('#txtModalCliente').val() || '').trim();
         var motivo = ($('#txtModalMotivo').val() || '').trim();
@@ -319,14 +353,23 @@ $(document).ready(function () {
                 $('body').removeClass('loading');
                 var msg = 'Error al guardar el registro.';
                 if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
-                var tipo = xhr.status === 400 ? 'warning' : 'error';
-                var titulo = xhr.status === 400 ? 'Atención' : 'Error';
-                Swal.fire({ type: tipo, title: titulo, text: msg });
+                var tipo = (xhr.status === 400 || xhr.status === 403) ? 'warning' : 'error';
+                var titulo = xhr.status === 403 ? 'Acceso Denegado' : (xhr.status === 400 ? 'Atención' : 'Error');
+                Swal.fire({ type: tipo, title: titulo, text: msg }).then(function () {
+                    if (xhr.status === 403) {
+                        $('#modalClienteBloqueado').modal('hide');
+                        window.location.reload();
+                    }
+                });
             }
         });
     }
 
     function ELIMINAR(id, nombre) {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para desbloquear clientes.' });
+            return;
+        }
         Swal.fire({
             title: '¿Desbloquear cliente?',
             text: 'Se cambiará el estado del cliente "' + (nombre || '') + '" a desbloqueado.',
@@ -360,7 +403,13 @@ $(document).ready(function () {
                     $('body').removeClass('loading');
                     var msg = 'Error al eliminar el registro.';
                     if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
-                    Swal.fire({ type: 'error', title: 'Error', text: msg });
+                    var tipo = (xhr.status === 400 || xhr.status === 403) ? 'warning' : 'error';
+                    var titulo = xhr.status === 403 ? 'Acceso Denegado' : (xhr.status === 400 ? 'Atención' : 'Error');
+                    Swal.fire({ type: tipo, title: titulo, text: msg }).then(function () {
+                        if (xhr.status === 403) {
+                            window.location.reload();
+                        }
+                    });
                 }
             });
         });
@@ -405,9 +454,12 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 $('body').removeClass('loading');
+                $('#btnexportar').prop('disabled', true);
                 var msg = 'Error al exportar.';
                 if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
-                Swal.fire({ type: 'error', title: 'Error', text: msg });
+                if (xhr.status !== 403 && xhr.status !== 401) {
+                    Swal.fire({ type: 'error', title: 'Error', text: msg });
+                }
             }
         });
     }
@@ -431,6 +483,10 @@ $(document).ready(function () {
     var _datosExcel = [];
 
     function abrirModalImportar() {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para importar clientes bloqueados.' });
+            return;
+        }
         _workbookExcel = null;
         _datosExcel = [];
         $('#fileImportarExcel').fileinput('destroy');
@@ -549,7 +605,13 @@ $(document).ready(function () {
                 Swal.close();
                 var msg = 'Error al importar clientes bloqueados.';
                 if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
-                Swal.fire({ type: 'error', title: 'Error', text: msg });
+                var tipo = (xhr.status === 400 || xhr.status === 403) ? 'warning' : 'error';
+                var titulo = xhr.status === 403 ? 'Acceso Denegado' : (xhr.status === 400 ? 'Atención' : 'Error');
+                Swal.fire({ type: tipo, title: titulo, text: msg }).then(function () {
+                    if (xhr.status === 403) {
+                        window.location.reload();
+                    }
+                });
             }
         });
     }

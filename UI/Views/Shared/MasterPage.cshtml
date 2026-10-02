@@ -61,7 +61,7 @@
     <!-- Toastr & Session -->
     <script src="~/js/plugins/toastr/toastr.min.js"></script>
     <script src="~/js/Bootstrap/jquery.session.js"></script>
-    <script src="~/js_modulos/masterpage/js_masterpage.js?v=@DateTime.Now.Ticks"></script>
+    <script src="~/js_modulos/masterpage/js_masterpage.js?v=1.0.1"></script>
 
     <!-- DataTables -->
     <link href="~/Css/plugins/dataTables/datatables.min.css" rel="stylesheet">
@@ -214,6 +214,9 @@
                         <li id="menu_padre_seguridad" style="display:none">
                             <a href="#"><i class="fa fa-shield-alt"></i> <span class="nav-label">Seguridad</span><span class="fa arrow"></span></a>
                             <ul class="nav nav-second-level">
+                                <li id="menu_punto_venta_permisos" style="display:none">
+                                    <a href="@Url.Action("Index", "Permisos")"><i class="fa fa-angle-double-right"></i> Permisos PVD</a>
+                                </li>
                                 <li id="menu_seguridad_cambio_clave" style="display:none">
                                     <a href="@Url.Action("Cambio_Clave", "Seguridad")"><i class="fa fa-angle-double-right"></i> Cambio de Clave</a>
                                 </li>

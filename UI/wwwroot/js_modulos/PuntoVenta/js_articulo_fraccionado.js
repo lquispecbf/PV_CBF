@@ -2,6 +2,21 @@ $(document).ready(function () {
 
     var tblArticulos = null;
 
+    var _puedeGestionar = (function () {
+        if (!window.PERMISOS_PV) return true;
+        if (typeof window.PERMISOS_PV.puedeArticuloFraccionadoGestionar === 'boolean') {
+            return window.PERMISOS_PV.puedeArticuloFraccionadoGestionar;
+        }
+        if (typeof window.PERMISOS_PV.PuedeArticuloFraccionadoGestionar === 'boolean') {
+            return window.PERMISOS_PV.PuedeArticuloFraccionadoGestionar;
+        }
+        return true;
+    })();
+
+    if (!_puedeGestionar) {
+        $('#imgmas, #btnnuevo, #btnimportar, #btnEliminarTodos').hide();
+    }
+
     inicializarTabla();
     registrarEventos();
     $('#txtBuscarArticulo').focus();
@@ -27,12 +42,14 @@ $(document).ready(function () {
                 { data: "FECHAHORA_CREACION", title: "FECHA CREACIÓN", width: "120px", visible: false },
                 {
                     data: null, title: "EDITAR", className: "text-center", width: "60px",
+                    visible: _puedeGestionar,
                     render: function () {
                         return '<img src="../img/editar_2.png" class="btnEditar" style="width:20px;height:20px;cursor:pointer;" title="Editar" />';
                     }
                 },
                 {
                     data: "ESTADO", title: "ELIMINAR", className: "text-center", width: "60px",
+                    visible: _puedeGestionar,
                     render: function (data) {
                         if (data) {
                             return '<img src="../img/eliminar.png" class="btnEliminar" style="width:20px;height:20px;cursor:pointer;" title="Eliminar" />';
@@ -211,12 +228,21 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 $('body').removeClass('loading');
-                Swal.fire({ type: 'error', title: 'Error', text: 'Error al buscar artículos fraccionados.' });
+                tblArticulos.clear().draw();
+                $('#contenedorTabla').hide();
+                $('#btnexportar, #btnEliminarTodos').prop('disabled', true);
+                if (xhr.status !== 403 && xhr.status !== 401) {
+                    Swal.fire({ type: 'error', title: 'Error', text: 'Error al buscar artículos fraccionados.' });
+                }
             }
         });
     }
 
     function NUEVO() {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para registrar artículos fraccionados.' });
+            return;
+        }
         _articuloseleccionado = false;
         _factorUmdPredeterminada = 0;
         $('#txtIdArticuloFraccionado').val(0);
@@ -237,6 +263,10 @@ $(document).ready(function () {
     }
 
     function EDITAR(id) {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para modificar artículos fraccionados.' });
+            return;
+        }
         $('body').addClass('loading');
 
         $.ajax({
@@ -315,6 +345,10 @@ $(document).ready(function () {
     }
 
     function GUARDAR() {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para guardar o modificar artículos fraccionados.' });
+            return;
+        }
         var id = parseInt($('#txtIdArticuloFraccionado').val()) || 0;
         var itemcode = ($('#txtModalArticulo').val() || '').trim();
         var fraccionado = parseInt($('#txtModalFraccionado').val()) || 0;
@@ -399,6 +433,10 @@ $(document).ready(function () {
     }
 
     function ELIMINAR(id, nombre) {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para inactivar artículos fraccionados.' });
+            return;
+        }
         Swal.fire({
             title: '¿Eliminar registro?',
             text: 'Se cambiará el estado del artículo "' + (nombre || '') + '" a inactivo.',
@@ -439,6 +477,10 @@ $(document).ready(function () {
     }
 
     function ELIMINAR_TODOS() {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para inactivar artículos fraccionados.' });
+            return;
+        }
         Swal.fire({
             title: '¿Inactivar todos los registros?',
             text: 'Se cambiará el estado de todos los artículos fraccionados activos a inactivo.',
@@ -515,9 +557,12 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 $('body').removeClass('loading');
+                $('#btnexportar').prop('disabled', true);
                 var msg = 'Error al exportar.';
                 if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
-                Swal.fire({ type: 'error', title: 'Error', text: msg });
+                if (xhr.status !== 403 && xhr.status !== 401) {
+                    Swal.fire({ type: 'error', title: 'Error', text: msg });
+                }
             }
         });
     }
@@ -645,6 +690,10 @@ $(document).ready(function () {
     }
 
     function abrirModalImportar() {
+        if (!_puedeGestionar) {
+            Swal.fire({ type: 'warning', title: 'Acceso Denegado', text: 'No cuenta con permisos para importar artículos fraccionados.' });
+            return;
+        }
         _workbookExcel = null;
         _datosExcel = [];
         _mapaExistentesFraccionados = {};

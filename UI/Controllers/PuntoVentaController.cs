@@ -1,4 +1,5 @@
 using BE.PuntoVenta;
+using BE.Seguridad;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using System.Text;
@@ -190,109 +191,223 @@ namespace UI.Controllers
             return Ok(new { success = true, keepAlive = false });
         }
 
+        private async Task<PermisosPuntoVentaDTO> ObtenerPermisosPvActualesAsync()
+        {
+            try
+            {
+                var response = await _apiClient.GetAsync("api/Auth/mis-permisos-pv");
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var permisosActualizados = JsonConvert.DeserializeObject<PermisosPuntoVentaDTO>(content);
+                    if (permisosActualizados != null)
+                    {
+                        HttpContext.Session.SetString("SESSION_PERMISOS_PV_JSON", JsonConvert.SerializeObject(permisosActualizados));
+                        HttpContext.Session.SetString("SESSION_ROL_PV", permisosActualizados.CodigoRolPv ?? "");
+                        HttpContext.Session.SetString("SESSION_ES_ADMIN_PV", permisosActualizados.EsAdministrador ? "1" : "0");
+                        return permisosActualizados;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo sincronizar permisos en tiempo real desde la API, usando respaldo de sesión.");
+            }
+
+            return ObtenerPermisosPvSession();
+        }
+
+        private PermisosPuntoVentaDTO ObtenerPermisosPvSession()
+        {
+            var permisosJson = HttpContext.Session.GetString("SESSION_PERMISOS_PV_JSON");
+            PermisosPuntoVentaDTO? permisosPv = null;
+            if (!string.IsNullOrWhiteSpace(permisosJson))
+            {
+                try
+                {
+                    permisosPv = JsonConvert.DeserializeObject<PermisosPuntoVentaDTO>(permisosJson);
+                }
+                catch { }
+            }
+
+            if (permisosPv == null)
+            {
+                var accionesDefault = new List<string>
+                {
+                    AccionesPvConstantes.VentaVer,
+                    AccionesPvConstantes.VentaCrear,
+                    AccionesPvConstantes.VentaGuardarBorrador,
+                    AccionesPvConstantes.VentaAnular,
+                    AccionesPvConstantes.VentaEnviarWms,
+                    AccionesPvConstantes.VentaReabrir,
+                    AccionesPvConstantes.VentaImprimir,
+                    AccionesPvConstantes.VentaExportarExcel,
+                    AccionesPvConstantes.ClienteBloqueadoVer,
+                    AccionesPvConstantes.ClienteBloqueadoGestionar,
+                    AccionesPvConstantes.ArticuloFraccionadoVer,
+                    AccionesPvConstantes.ArticuloFraccionadoGestionar,
+                    AccionesPvConstantes.StockAlmacenVer,
+                    AccionesPvConstantes.StockAlmacenExportar
+                };
+                if (!string.IsNullOrEmpty(ObtenerRolCondicionPagoUsuario()))
+                {
+                    accionesDefault.Add(AccionesPvConstantes.VentaModificarCondPago);
+                }
+                if (EsUsuarioAutorizadoAnularEnviadoWms())
+                {
+                    accionesDefault.Add(AccionesPvConstantes.VentaAnularEnviadoWms);
+                }
+                if (EsUsuarioMantenerSesion())
+                {
+                    accionesDefault.Add(AccionesPvConstantes.VentaMantenerSesion);
+                }
+
+                permisosPv = new PermisosPuntoVentaDTO
+                {
+                    CodigoRolPv = HttpContext.Session.GetString("SESSION_ROL_PV") ?? RolesPvConstantes.Vendedor,
+                    Acciones = accionesDefault
+                };
+            }
+
+            return permisosPv;
+        }
+
+        private void CargarViewBagPermisos(PermisosPuntoVentaDTO permisosPv)
+        {
+            ViewBag.PermisosPv = permisosPv;
+            ViewBag.PermisosPvJson = JsonConvert.SerializeObject(permisosPv, new JsonSerializerSettings
+            {
+                ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()
+            });
+            ViewBag.MantenerSesionPuntoVenta = permisosPv.MantenerSesion;
+            ViewBag.PuedeAnularEnviadoWms = permisosPv.PuedeAnularEnviadoWms;
+            ViewBag.PuedeModificarCondicionPago = permisosPv.PuedeModificarCondicionPago;
+        }
+
         #region Vistas Razor
-        public IActionResult Venta()
+        [RequierePermisoVista]
+        public async Task<IActionResult> Venta()
         {
+            var permisosPv = await ObtenerPermisosPvActualesAsync();
+            CargarViewBagPermisos(permisosPv);
             ViewBag.UsuarioSapCode = HttpContext.Session.GetInt32("SESSION_CODIGO_VENDEDOR_SAP") ?? 0;
-            ViewBag.MantenerSesionPuntoVenta = EsUsuarioMantenerSesion();
-            ViewBag.PuedeAnularEnviadoWms = EsUsuarioAutorizadoAnularEnviadoWms();
-            ViewBag.PuedeModificarCondicionPago = !string.IsNullOrEmpty(ObtenerRolCondicionPagoUsuario());
             return View();
         }
 
-        public IActionResult StockPorAlmacen()
+        [RequierePermisoVista]
+        public async Task<IActionResult> StockPorAlmacen()
         {
-            ViewBag.MantenerSesionPuntoVenta = EsUsuarioMantenerSesion();
+            var permisosPv = await ObtenerPermisosPvActualesAsync();
+            CargarViewBagPermisos(permisosPv);
             return View();
         }
 
-        public IActionResult ClienteBloqueado()
+        [RequierePermisoVista]
+        public async Task<IActionResult> ClienteBloqueado()
         {
-            ViewBag.MantenerSesionPuntoVenta = EsUsuarioMantenerSesion();
+            var permisosPv = await ObtenerPermisosPvActualesAsync();
+            CargarViewBagPermisos(permisosPv);
             return View();
         }
 
-        public IActionResult ArticuloFraccionado()
+        [RequierePermisoVista]
+        public async Task<IActionResult> ArticuloFraccionado()
         {
-            ViewBag.MantenerSesionPuntoVenta = EsUsuarioMantenerSesion();
+            var permisosPv = await ObtenerPermisosPvActualesAsync();
+            CargarViewBagPermisos(permisosPv);
             return View();
         }
         #endregion
 
         #region Operaciones Punto de Venta (Proxy a la Web API con JWT)
 
+        [RequierePermisoModulo("PuntoVenta:StockPorAlmacen")]
         [HttpPost]
         public async Task<IActionResult> Buscar_StockPorAlmacen([FromBody] StockPorAlmacenFiltroDTO filtro)
         {
             return await ProxyPostAsync("api/PuntoVenta/Buscar_StockPorAlmacen", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:StockPorAlmacen")]
         [HttpPost]
         public async Task<IActionResult> ExportarExcel_StockPorAlmacen([FromBody] StockPorAlmacenFiltroDTO filtro)
         {
             return await ProxyFilePostAsync("api/PuntoVenta/ExportarExcel_StockPorAlmacen", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_Cliente(string criterioBusqueda)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_Cliente?criterioBusqueda={Uri.EscapeDataString(criterioBusqueda ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_ListaPrecios(string? nombreBusqueda)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_ListaPrecios?nombreBusqueda={Uri.EscapeDataString(nombreBusqueda ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_Vendedores()
         {
             return await ProxyGetAsync("api/PuntoVenta/Buscar_Vendedores");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta", "PuntoVenta:StockPorAlmacen")]
         public async Task<IActionResult> Buscar_Almacenes(string? nombreBusqueda)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_Almacenes?nombreBusqueda={Uri.EscapeDataString(nombreBusqueda ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_DireccionesCliente(string codigoCliente)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_DireccionesCliente?codigoCliente={Uri.EscapeDataString(codigoCliente ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_TiposEmbalaje()
         {
             return await ProxyGetAsync("api/PuntoVenta/Buscar_TiposEmbalaje");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_LugaresEntrega()
         {
             return await ProxyGetAsync("api/PuntoVenta/Buscar_LugaresEntrega");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_HorasEntrega()
         {
             return await ProxyGetAsync("api/PuntoVenta/Buscar_HorasEntrega");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_ModosEnvio()
         {
             return await ProxyGetAsync("api/PuntoVenta/Buscar_ModosEnvio");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_FormasPago(string? condicionPago)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_FormasPago?condicionPago={Uri.EscapeDataString(condicionPago ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_TiposComprobante(string? nombreBusqueda)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_TiposComprobante?nombreBusqueda={Uri.EscapeDataString(nombreBusqueda ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_NotasCreditoCliente(string codigoCliente)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_NotasCreditoCliente?codigoCliente={Uri.EscapeDataString(codigoCliente ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_DesgloseCreditoCliente(string codigoCliente, int? docEntrySap = null)
         {
             string url = $"api/PuntoVenta/Buscar_DesgloseCreditoCliente?codigoCliente={Uri.EscapeDataString(codigoCliente ?? "")}";
@@ -300,11 +415,13 @@ namespace UI.Controllers
             return await ProxyGetAsync(url);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_ArticulosPorCodigo(string codigoArticulo, int codigoListaPrecio, string codigoAlmacen)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_ArticulosPorCodigo?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}&codigoListaPrecio={codigoListaPrecio}&codigoAlmacen={Uri.EscapeDataString(codigoAlmacen ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_DetalleArticuloVenta(string codigoArticulo, int codigoListaPrecio, string codigoAlmacen, string? codigoCliente, int? codigoUmd)
         {
             string url = $"api/PuntoVenta/Buscar_DetalleArticuloVenta?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}&codigoListaPrecio={codigoListaPrecio}&codigoAlmacen={Uri.EscapeDataString(codigoAlmacen ?? "")}&codigoCliente={Uri.EscapeDataString(codigoCliente ?? "")}";
@@ -312,49 +429,58 @@ namespace UI.Controllers
             return await ProxyGetAsync(url);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Buscar_DetalleArticulosVentaBatch([FromBody] ArticuloDetalleVentaBatchRequestDTO request)
         {
             return await ProxyPostAsync("api/PuntoVenta/Buscar_DetalleArticulosVentaBatch", request);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Calcular_PreciosBatch([FromBody] PreciosBatchRequestDTO request)
         {
             return await ProxyPostAsync("api/PuntoVenta/Calcular_PreciosBatch", request);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_ArticulosAutocomplete(string? textoBusqueda, int codigoListaPrecio, string codigoAlmacen)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_ArticulosAutocomplete?textoBusqueda={Uri.EscapeDataString(textoBusqueda ?? "")}&codigoListaPrecio={codigoListaPrecio}&codigoAlmacen={Uri.EscapeDataString(codigoAlmacen ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_ArticulosDescripcion(string? textoBusqueda, int codigoListaPrecio, string codigoAlmacen)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_ArticulosDescripcion?textoBusqueda={Uri.EscapeDataString(textoBusqueda ?? "")}&codigoListaPrecio={codigoListaPrecio}&codigoAlmacen={Uri.EscapeDataString(codigoAlmacen ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_UmdArticulo(string codigoArticulo)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_UmdArticulo?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_PromoArticulo(string codigoArticulo, string codigoCliente, int codigoListaPrecio, int codigoUmd)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_PromoArticulo?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}&codigoCliente={Uri.EscapeDataString(codigoCliente ?? "")}&codigoListaPrecio={codigoListaPrecio}&codigoUmd={codigoUmd}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         public async Task<IActionResult> Buscar_LotesArticulo(string codigoArticulo, string codigoAlmacen)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_LotesArticulo?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}&codigoAlmacen={Uri.EscapeDataString(codigoAlmacen ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Buscar_LotesArticulosBatch([FromBody] LotesBatchRequestDTO request)
         {
             return await ProxyPostAsync("api/PuntoVenta/Buscar_LotesArticulosBatch", request);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpGet]
         public async Task<IActionResult> Buscar_ArticulosAvanzado(
             string? descripcion,
@@ -377,54 +503,63 @@ namespace UI.Controllers
             return await ProxyGetAsync(sb.ToString());
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpGet]
         public async Task<IActionResult> Buscar_TitularesRs()
         {
             return await ProxyGetAsync("api/PuntoVenta/Buscar_TitularesRs");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Guardar_Venta([FromBody] VentaGuardarRequestDTO request)
         {
             return await ProxyPostAsync("api/PuntoVenta/Guardar_Venta", request);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> ExportarExcel_Ventas([FromBody] VentaBusquedaFiltroDTO filtro)
         {
             return await ProxyFilePostAsync("api/PuntoVenta/ExportarExcel_Ventas", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Buscar_Ventas([FromBody] VentaBusquedaFiltroDTO filtro)
         {
             return await ProxyPostAsync("api/PuntoVenta/Buscar_Ventas", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Buscar_LogImportador([FromBody] CargarVentaRequestDTO data)
         {
             return await ProxyPostAsync("api/PuntoVenta/Buscar_LogImportador", data);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Cargar_Venta([FromBody] CargarVentaRequestDTO data)
         {
             return await ProxyPostAsync("api/PuntoVenta/Cargar_Venta", data);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Ver_Venta([FromBody] CargarVentaRequestDTO data)
         {
             return await ProxyPostAsync("api/PuntoVenta/Ver_Venta", data);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpGet]
         public async Task<IActionResult> Obtener_ImagenArticulo(string codigoArticulo)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Obtener_ImagenArticulo?codigoArticulo={Uri.EscapeDataString(codigoArticulo ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpGet]
         public async Task<IActionResult> Ver_ImagenArticulo(string codigoArticulo)
         {
@@ -447,31 +582,37 @@ namespace UI.Controllers
             }
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Anular_Venta([FromBody] CargarVentaRequestDTO data)
         {
             return await ProxyPostAsync("api/PuntoVenta/Anular_Venta", data);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Reabrir_Venta([FromBody] ReabrirVentaRequestDTO data)
         {
             return await ProxyPostAsync("api/PuntoVenta/Reabrir_Venta", data);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> Trasladar_Venta([FromBody] CargarVentaRequestDTO data)
         {
             return await ProxyPostAsync("api/PuntoVenta/Trasladar_Venta", data);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> EnviarWMS_Venta([FromBody] CargarVentaRequestDTO data)
         {
             return await ProxyPostAsync("api/PuntoVenta/EnviarWMS_Venta", data);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost, HttpGet]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> Imprimir_Venta(VentaReporteParamDTO dto)
         {
             var docNum = !string.IsNullOrWhiteSpace(dto.NroSap) ? dto.NroSap.Trim() : (dto.DocEntrySap > 0 ? dto.DocEntrySap.ToString() : dto.DocEntry.ToString());
@@ -480,7 +621,9 @@ namespace UI.Controllers
             return await ProxyFileGetAsync(url, fallback);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost, HttpGet]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> Ticket_Venta(VentaReporteParamDTO dto)
         {
             var docNum = !string.IsNullOrWhiteSpace(dto.NroSap) ? dto.NroSap.Trim() : (dto.DocEntrySap > 0 ? dto.DocEntrySap.ToString() : dto.DocEntry.ToString());
@@ -489,7 +632,9 @@ namespace UI.Controllers
             return await ProxyFileGetAsync(url, fallback);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost, HttpGet]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> PreliminarSap_Venta(VentaReporteParamDTO dto)
         {
             var docNum = !string.IsNullOrWhiteSpace(dto.NroSap) ? dto.NroSap.Trim() : (dto.DocEntrySap > 0 ? dto.DocEntrySap.ToString() : dto.DocEntry.ToString());
@@ -498,7 +643,9 @@ namespace UI.Controllers
             return await ProxyFileGetAsync(url, fallback);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost, HttpGet]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> PreliminarPv_Venta(VentaReporteParamDTO dto)
         {
             string fallback = $"PreliminarPv_{dto.DocEntry}.pdf";
@@ -508,54 +655,63 @@ namespace UI.Controllers
 
         // ========== CLIENTES BLOQUEADOS ==========
 
+        [RequierePermisoModulo("PuntoVenta:ClienteBloqueado")]
         [HttpPost]
         public async Task<IActionResult> Buscar_ClientesBloqueados([FromBody] ClienteBloqueadoFiltroDTO filtro)
         {
             return await ProxyPostAsync("api/PuntoVenta/Buscar_ClientesBloqueados", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ClienteBloqueado")]
         [HttpPost]
         public async Task<IActionResult> Obtener_ClienteBloqueado([FromBody] ClienteBloqueadoIdDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Obtener_ClienteBloqueado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ClienteBloqueado")]
         [HttpPost]
         public async Task<IActionResult> Insertar_ClienteBloqueado([FromBody] ClienteBloqueadoGuardarDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Insertar_ClienteBloqueado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ClienteBloqueado")]
         [HttpPost]
         public async Task<IActionResult> Actualizar_ClienteBloqueado([FromBody] ClienteBloqueadoGuardarDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Actualizar_ClienteBloqueado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ClienteBloqueado")]
         [HttpPost]
         public async Task<IActionResult> Eliminar_ClienteBloqueado([FromBody] ClienteBloqueadoIdDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Eliminar_ClienteBloqueado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta", "PuntoVenta:ClienteBloqueado")]
         [HttpGet]
         public async Task<IActionResult> Validar_ClienteBloqueado(string carcode)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Validar_ClienteBloqueado?carcode={Uri.EscapeDataString(carcode ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta", "PuntoVenta:ClienteBloqueado")]
         [HttpGet]
         public async Task<IActionResult> Buscar_ClienteSap(string? criterioBusqueda)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_ClienteSap?criterioBusqueda={Uri.EscapeDataString(criterioBusqueda ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:ClienteBloqueado")]
         [HttpPost]
         public async Task<IActionResult> Exportar_ClientesBloqueados([FromBody] ClienteBloqueadoFiltroDTO filtro)
         {
             return await ProxyFilePostAsync("api/PuntoVenta/Exportar_ClientesBloqueados", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ClienteBloqueado")]
         [HttpPost]
         public async Task<IActionResult> Importar_ClientesBloqueados([FromBody] List<ClienteBloqueadoImportarDTO> registros)
         {
@@ -564,60 +720,70 @@ namespace UI.Controllers
 
         // ========== ARTICULOS FRACCIONADOS ==========
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> Buscar_ArticulosFraccionados([FromBody] ArticuloFraccionadoFiltroDTO filtro)
         {
             return await ProxyPostAsync("api/PuntoVenta/Buscar_ArticulosFraccionados", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> Obtener_ArticuloFraccionado([FromBody] ArticuloFraccionadoIdDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Obtener_ArticuloFraccionado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> Insertar_ArticuloFraccionado([FromBody] ArticuloFraccionadoGuardarDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Insertar_ArticuloFraccionado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> Actualizar_ArticuloFraccionado([FromBody] ArticuloFraccionadoGuardarDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Actualizar_ArticuloFraccionado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> Eliminar_ArticuloFraccionado([FromBody] ArticuloFraccionadoIdDTO dto)
         {
             return await ProxyPostAsync("api/PuntoVenta/Eliminar_ArticuloFraccionado", dto);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> EliminarTodos_ArticulosFraccionados()
         {
             return await ProxyPostAsync("api/PuntoVenta/EliminarTodos_ArticulosFraccionados");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta", "PuntoVenta:ArticuloFraccionado")]
         [HttpGet]
         public async Task<IActionResult> Validar_ArticuloFraccionado(string itemcode)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Validar_ArticuloFraccionado?itemcode={Uri.EscapeDataString(itemcode ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpGet]
         public async Task<IActionResult> Buscar_ArticuloSap(string? criterioBusqueda)
         {
             return await ProxyGetAsync($"api/PuntoVenta/Buscar_ArticuloSap?criterioBusqueda={Uri.EscapeDataString(criterioBusqueda ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> Exportar_ArticulosFraccionados([FromBody] ArticuloFraccionadoFiltroDTO filtro)
         {
             return await ProxyFilePostAsync("api/PuntoVenta/Exportar_ArticulosFraccionados", filtro);
         }
 
+        [RequierePermisoModulo("PuntoVenta:ArticuloFraccionado")]
         [HttpPost]
         public async Task<IActionResult> Importar_ArticulosFraccionados([FromBody] List<ArticuloFraccionadoImportarDTO> registros)
         {
@@ -626,12 +792,14 @@ namespace UI.Controllers
 
         // ========== MODIFICAR CONDICIÓN DE PAGO ==========
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpGet]
         public async Task<IActionResult> ObtenerDatosModificarCondicionPago(int docEntry, int docEntrySap)
         {
             return await ProxyGetAsync($"api/PuntoVenta/ObtenerDatosModificarCondicionPago?docEntry={docEntry}&docEntrySap={docEntrySap}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> ActualizarCondicionPago([FromBody] ActualizarCondicionPagoRequestDTO request)
         {

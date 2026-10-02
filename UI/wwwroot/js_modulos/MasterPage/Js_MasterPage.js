@@ -153,118 +153,46 @@ $(document).ready(function () {
         sessionStorage.setItem('AVISO_CLAVE_MOSTRADO', '1');
     }
 
-    (function ($) {
-        const originalAjax = $.ajax;
-        $.ajax = function (options) {
-            const userError = options.error;
-            options.error = function (xhr, status, error) {
-                if (xhr.status === 403) {
-                    $('body').removeClass('loading');
-                    swal("Acceso Denegado", "No tiene permisos para realizar esta acción.", "warning");
-                    return;
-                }
-                if (typeof userError === "function") {
-                    userError(xhr, status, error);
-                }
-            };
-            return originalAjax.call($, options);
-        };
-    })(jQuery);
-
-    /* SINCRONIZACIÓN ENTRE PESTAÑAS */
-    window.addEventListener("storage", function (event) {
-        if (event.key !== SESSION_EVENT_KEY || !event.newValue) {
-            return;
-        }
-
-        let data = null;
-        try {
-            data = JSON.parse(event.newValue);
-        } catch (e) {
-            return;
-        }
-
-        if (!data || data.tabId === tabId) {
-            return;
-        }
-
-        if (data.tipo === "LOGOUT") {
-            $.session.clear();
-            localStorage.removeItem(SESSION_ACTIVE_USER_KEY);
-            window.location.href = "/Seguridad/Login";
-            return;
-        }
-    });
-
-    /* MANEJO GLOBAL DE EXPIRACIÓN DE SESIÓN */
-    let sesionExpiradaMostrada = false;
-
-    function notificarSesionExpiradaYRedirigir() {
-        if (window.location.pathname.toLowerCase().includes('/seguridad/login')) {
-            return;
-        }
-
-        if (sesionExpiradaMostrada || window.__sesionExpiradaMostrada || sessionStorage.getItem('CBF_SESION_EXPIRADA_DIALOGO') === '1') {
-            return;
-        }
-
-        sesionExpiradaMostrada = true;
-        window.__sesionExpiradaMostrada = true;
-        sessionStorage.setItem('CBF_SESION_EXPIRADA_DIALOGO', '1');
-
-        if (keepAliveIntervalId) {
-            clearInterval(keepAliveIntervalId);
-            keepAliveIntervalId = null;
-        }
-
-        $('body').removeClass('loading');
-        $.session.clear();
-        sessionStorage.clear();
-        localStorage.removeItem(SESSION_ACTIVE_USER_KEY);
-
-        // Esperar estrictamente a que el usuario presione el botón Aceptar / OK
-        if (typeof swal === 'function') {
-            swal({
-                title: "Sesión expirada",
-                text: "Su sesión ha finalizado. Presione Aceptar para ir al inicio de sesión.",
-                type: "warning",
-                confirmButtonColor: "#1ab394",
-                confirmButtonText: "Aceptar",
-                allowOutsideClick: false,
-                allowEscapeKey: false
-            }).then(function () {
-                sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
-                window.location.href = '/Seguridad/Login';
-            });
-        } else if (window.Swal && typeof window.Swal.fire === 'function') {
-            window.Swal.fire({
-                title: "Sesión expirada",
-                text: "Su sesión ha finalizado. Presione Aceptar para ir al inicio de sesión.",
-                icon: "warning",
-                confirmButtonColor: "#1ab394",
-                confirmButtonText: "Aceptar",
-                allowOutsideClick: false,
-                allowEscapeKey: false
-            }).then(function () {
-                sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
-                window.location.href = '/Seguridad/Login';
-            });
-        } else {
-            alert("Su sesión ha finalizado. Presione Aceptar para continuar.");
-            window.location.href = '/Seguridad/Login';
-        }
-    }
-
     /* MANEJO GLOBAL DE ERRORES AJAX */
     $(document).ajaxError(function (event, xhr, settings) {
         $('body').removeClass('loading');
 
         var isSessionExpired = xhr.status === 401 ||
-                               xhr.status === 403 ||
                                (xhr.getResponseHeader && xhr.getResponseHeader('X-Session-Expired') === 'true');
 
         if (isSessionExpired) {
             notificarSesionExpiradaYRedirigir();
+            return;
+        }
+
+        if (xhr.status === 403) {
+            var msg = "No cuenta con permisos para realizar esta acción.";
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                msg = xhr.responseJSON.error;
+            }
+            if (msg.indexOf("Acceso Denegado:") === 0) {
+                msg = msg.substring("Acceso Denegado:".length).trim();
+            }
+            if (typeof swal === 'function') {
+                swal({
+                    title: "Acceso Denegado",
+                    text: msg,
+                    type: "warning",
+                    confirmButtonColor: "#1ab394",
+                    confirmButtonText: "Aceptar"
+                });
+            } else if (window.Swal && typeof window.Swal.fire === 'function') {
+                window.Swal.fire({
+                    title: "Acceso Denegado",
+                    text: msg,
+                    type: "warning",
+                    icon: "warning",
+                    confirmButtonColor: "#1ab394",
+                    confirmButtonText: "Aceptar"
+                });
+            } else {
+                alert("Acceso Denegado: " + msg);
+            }
             return;
         }
 
@@ -334,6 +262,8 @@ $(document).ready(function () {
                 $.session.set('SESSION_DIAS_CLAVE', sesion.SESSION_DIAS_CLAVE || "999");
                 $.session.set('SESSION_PROXIMO_VENCER', sesion.SESSION_PROXIMO_VENCER || "0");
                 $.session.set('SESSION_MANTENER_SESION', sesion.SESSION_MANTENER_SESION || "0");
+                $.session.set('SESSION_ROL_PV', sesion.SESSION_ROL_PV || "");
+                $.session.set('SESSION_ES_ADMIN_PV', sesion.SESSION_ES_ADMIN_PV || "0");
 
                 iniciarKeepAliveSiAplica();
 
@@ -379,13 +309,44 @@ $(document).ready(function () {
                 $('body').addClass('loading');
             },
             success: function (datos) {
-                // 1. Mostrar únicamente los menús para los cuales el usuario tiene permiso en BD
+                // 1. Mostrar todos los menús para los cuales el usuario tiene permiso en BD
+                var menusPvdModulos = [
+                    'menu_venta',
+                    'menu_punto_venta_clientes_bloqueados',
+                    'menu_punto_venta_articulos_fraccionados',
+                    'menu_punto_venta_stock_por_almacen',
+                    'menu_punto_venta_permisos'
+                ];
+
+                var countPvd = 0;
                 if (datos && datos.length > 0) {
                     for (var i = 0; i < datos.length; i++) {
                         if (datos[i].DESCRIPCION_MENU_SYS) {
-                            $('#' + datos[i].DESCRIPCION_MENU_SYS).css("display", "block");
+                            var menuSys = datos[i].DESCRIPCION_MENU_SYS.trim();
+                            $('#' + menuSys).css("display", "block");
+                            if (menusPvdModulos.indexOf(menuSys) !== -1) {
+                                countPvd++;
+                            }
                         }
                     }
+                }
+
+                if (countPvd === 0) {
+                    $('body').removeClass('loading');
+                    swal({
+                        title: "Acceso Denegado",
+                        text: "Su usuario no cuenta con autorización para acceder al Sistema de Punto de Venta.",
+                        type: "warning",
+                        confirmButtonColor: "#1ab394",
+                        confirmButtonText: "Aceptar",
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(function () {
+                        $.session.clear();
+                        sessionStorage.clear();
+                        window.location.href = "/Seguridad/Logout";
+                    });
+                    return;
                 }
 
                 // 2. Aplicar lógica de visibilidad jerárquica para menús padre
@@ -442,7 +403,10 @@ $(document).ready(function () {
         }
 
         // Verificar si el menú padre de Seguridad tiene al menos un submenú visible
-        if ($('#menu_seguridad_cambio_clave').css('display') !== 'none') {
+        var tieneSeguridadVisible = ($('#menu_seguridad_cambio_clave').css('display') !== 'none') ||
+                                    ($('#menu_punto_venta_permisos').css('display') !== 'none');
+
+        if (tieneSeguridadVisible) {
             $('#menu_padre_seguridad').show();
         } else {
             $('#menu_padre_seguridad').hide();
