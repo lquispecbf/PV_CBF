@@ -48,6 +48,35 @@ PV.Validaciones = (function () {
                 $("#btnBusquedaBuscar").trigger("click");
             });
         });
+
+        $(document).on("change", "#ddlLogisticaLugarEntrega, #ddlFinancieroFormaPago", function () {
+            validarCompatibilidadLugarEntregaYFormaPago(true);
+        });
+    }
+
+    function validarCompatibilidadLugarEntregaYFormaPago(mostrarAlerta = true) {
+        if (PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly()) {
+            return true; // En modo VER (Solo Lectura) se omite la validación
+        }
+
+        const lugarEntregaText = ($("#ddlLogisticaLugarEntrega option:selected").text() || "").trim().toUpperCase();
+        const formaPagoText = ($("#ddlFinancieroFormaPago option:selected").text() || "").trim().toUpperCase();
+
+        if (lugarEntregaText === "AGENCIA" && (formaPagoText.indexOf("CONTRA ENTREGA") !== -1 || formaPagoText.indexOf("CONTRAENTREGA") !== -1)) {
+            if (mostrarAlerta) {
+                Swal.fire({
+                    title: "Incompatibilidad Comercial",
+                    text: "Cuando el Lugar de Entrega es AGENCIA, no se permite la forma de pago CONTRA ENTREGA. Por favor seleccione otra condición de pago o cambie el lugar de entrega.",
+                    icon: "warning",
+                    type: "warning",
+                    confirmButtonColor: "#1ab394",
+                    confirmButtonText: "Entendido"
+                });
+            }
+            return false;
+        }
+
+        return true;
     }
 
     function validarCabeceraVenta() {
@@ -1249,7 +1278,8 @@ PV.Validaciones = (function () {
         validarArticuloControlado: validarArticuloControlado,
         mostrarAlertaControladosNoAutorizados: mostrarAlertaControladosNoAutorizados,
         validarControladosEnDetalle: validarControladosEnDetalle,
-        revalidarControladosEnDetalle: revalidarControladosEnDetalle
+        revalidarControladosEnDetalle: revalidarControladosEnDetalle,
+        validarCompatibilidadLugarEntregaYFormaPago: validarCompatibilidadLugarEntregaYFormaPago
     };
 
 })();
