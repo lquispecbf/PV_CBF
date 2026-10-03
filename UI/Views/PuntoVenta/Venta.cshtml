@@ -1735,6 +1735,21 @@
         font-weight: 700 !important;
     }
 
+    #tblVentaDetalle tbody tr:hover,
+    #tblVentaDetalle tbody tr:hover > td {
+        background-color: #cfe2ff !important;
+    }
+
+    #tblVentaDetalle tbody tr:hover > td:first-child {
+        border-left: 4px solid #1ab394 !important;
+    }
+
+    #tblVentaDetalle tbody tr:hover input.form-control:not(.por-vender-cero):not(.por-vender-cambiado),
+    #tblVentaDetalle tbody tr:hover select.form-control {
+        background-color: #dbeafe !important;
+        border-color: #b6d4fe !important;
+    }
+
     #detalleScrollContainer {
         min-height: 250px;
         max-height: calc(100vh - 420px);
