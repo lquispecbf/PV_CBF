@@ -134,6 +134,11 @@ namespace UI.Controllers
                 // Guardar en sesión
                 HttpContext.Session.Clear();
                 HttpContext.Session.SetString("SESSION_JWT_TOKEN", token);
+                DateTime? expiration = jsonResult["Expiration"]?.Value<DateTime>() ?? jsonResult["expiration"]?.Value<DateTime>();
+                if (expiration.HasValue)
+                {
+                    HttpContext.Session.SetString("SESSION_TOKEN_EXPIRATION", expiration.Value.ToString("o"));
+                }
                 HttpContext.Session.SetString("SESSION_ID_USUARIO", usuario.ID.ToString());
                 HttpContext.Session.SetString("SESSION_USUARIO", usuario.USUARIO ?? "");
                 HttpContext.Session.SetString("SESSION_NOMBRES", usuario.NOMBRES ?? "");
@@ -182,12 +187,11 @@ namespace UI.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en Validar_Login MVC");
-                var baseUrl = _configuration.GetValue<string>("ApiConfig:BaseUrl");
+                _logger.LogError(ex, "Error al conectar con la Web API en Validar_Login.");
                 return Json(new
                 {
                     Estado = false,
-                    Mensaje = $"No se pudo conectar con la Web API en '{baseUrl}'. Asegúrese de que el proyecto API esté iniciado en el puerto 5050.",
+                    Mensaje = "No se pudo establecer conexión con el servicio. Por favor, verifique su conexión o comuníquese con el área de T.I.",
                     Usuario = new List<BE_Usuario>()
                 });
             }
@@ -240,7 +244,8 @@ namespace UI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { resultado = 0, mensaje = $"Error al comunicar con la API: {ex.Message}" });
+                _logger.LogError(ex, "Error al comunicar con la Web API en Cambiar_Clave_Segura.");
+                return StatusCode(500, new { resultado = 0, mensaje = "No se pudo procesar la solicitud. Por favor, intente nuevamente o comuníquese con T.I." });
             }
         }
 

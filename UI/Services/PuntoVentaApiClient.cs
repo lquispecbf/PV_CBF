@@ -36,6 +36,66 @@ namespace UI.Services
             }
         }
 
+        public async Task<bool> RenovarTokenSesionAsync()
+        {
+            var session = _httpContextAccessor.HttpContext?.Session;
+            if (session == null) return false;
+
+            var idUsuarioStr = session.GetString("SESSION_ID_USUARIO");
+            var usuario = session.GetString("SESSION_USUARIO");
+
+            if (string.IsNullOrWhiteSpace(idUsuarioStr) || !int.TryParse(idUsuarioStr, out int idUsuario) || string.IsNullOrWhiteSpace(usuario))
+            {
+                return false;
+            }
+
+            try
+            {
+                var reqDto = new RenovarTokenSesionRequestDTO
+                {
+                    IdUsuario = idUsuario,
+                    Usuario = usuario
+                };
+
+                var request = new HttpRequestMessage(HttpMethod.Post, "api/Auth/renovar-token-sesion")
+                {
+                    Content = new StringContent(JsonConvert.SerializeObject(reqDto), Encoding.UTF8, "application/json")
+                };
+
+                var response = await _httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var respDto = JsonConvert.DeserializeObject<RenovarTokenSesionResponseDTO>(content);
+                    if (respDto != null && respDto.Success && !string.IsNullOrWhiteSpace(respDto.Token))
+                    {
+                        session.SetString("SESSION_JWT_TOKEN", respDto.Token);
+                        session.SetString("SESSION_TOKEN_EXPIRATION", respDto.Expiration.ToString("o"));
+                        _logger.LogInformation("Token JWT renovado exitosamente para el usuario {Usuario} (ID {IdUsuario}).", usuario, idUsuario);
+                        return true;
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Respuesta no exitosa al renovar token para {Usuario}: {StatusCode}", usuario, response.StatusCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al renovar token de sesión para {Usuario}.", usuario);
+            }
+
+            return false;
+        }
+
+        private bool EsUsuarioMantenerSesion()
+        {
+            var session = _httpContextAccessor.HttpContext?.Session;
+            if (session == null) return false;
+            var mantener = session.GetString("SESSION_MANTENER_SESION");
+            return mantener == "1" || string.Equals(mantener, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
         public async Task<HttpResponseMessage> PostLoginAsync(BE_Usuario oUsuario)
         {
             var request = new HttpRequestMessage(HttpMethod.Post, "api/Auth/login")
@@ -57,7 +117,27 @@ namespace UI.Services
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             }
 
-            return await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request);
+
+            // Si devuelve 401 Unauthorized y el usuario tiene mantener sesión activo, intentar auto-recuperar
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && EsUsuarioMantenerSesion() && !relativeUrl.Contains("renovar-token-sesion") && !relativeUrl.Contains("login"))
+            {
+                _logger.LogWarning("Petición POST a {Url} retornó 401. Intentando renovación transparente de token...", relativeUrl);
+                bool renovado = await RenovarTokenSesionAsync();
+                if (renovado)
+                {
+                    var reintentarRequest = new HttpRequestMessage(HttpMethod.Post, relativeUrl);
+                    AdjuntarTokenAutorizacion(reintentarRequest);
+                    if (body != null)
+                    {
+                        var json = JsonConvert.SerializeObject(body);
+                        reintentarRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                    }
+                    return await _httpClient.SendAsync(reintentarRequest);
+                }
+            }
+
+            return response;
         }
 
         public async Task<HttpResponseMessage> GetAsync(string relativeUrl)
@@ -65,7 +145,22 @@ namespace UI.Services
             var request = new HttpRequestMessage(HttpMethod.Get, relativeUrl);
             AdjuntarTokenAutorizacion(request);
 
-            return await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request);
+
+            // Si devuelve 401 Unauthorized y el usuario tiene mantener sesión activo, intentar auto-recuperar
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && EsUsuarioMantenerSesion() && !relativeUrl.Contains("renovar-token-sesion") && !relativeUrl.Contains("login"))
+            {
+                _logger.LogWarning("Petición GET a {Url} retornó 401. Intentando renovación transparente de token...", relativeUrl);
+                bool renovado = await RenovarTokenSesionAsync();
+                if (renovado)
+                {
+                    var reintentarRequest = new HttpRequestMessage(HttpMethod.Get, relativeUrl);
+                    AdjuntarTokenAutorizacion(reintentarRequest);
+                    return await _httpClient.SendAsync(reintentarRequest);
+                }
+            }
+
+            return response;
         }
 
         public async Task<T?> GetFromJsonAsync<T>(string relativeUrl)

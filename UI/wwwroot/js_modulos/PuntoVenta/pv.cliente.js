@@ -51,6 +51,7 @@ PV.Cliente = (function () {
         _asegurarBotonInfoControlados();
         inicializarAutocompleteCliente();
         registrarEventos();
+        actualizarEstadoBotonDigemid();
     }
     function inicializarAutocompleteCliente() {
         $(".autocomplete-cliente").autocomplete({
@@ -135,6 +136,8 @@ PV.Cliente = (function () {
                     $(this).val(c.CLIENTE);
                 }
 
+                actualizarEstadoBotonDigemid();
+
                 if (PV.DraftManager && typeof PV.DraftManager.notificarCambio === "function") {
                     PV.DraftManager.notificarCambio();
                 }
@@ -144,6 +147,22 @@ PV.Cliente = (function () {
         });
     }
     function registrarEventos() {
+        $(document).on("input change keyup paste", "#txtClienteRuc", function () {
+            actualizarEstadoBotonDigemid();
+        });
+        $("#btnConsultarDigemid").on("click", function () {
+            if (!PV.Utils.puedeInteractuar()) return;
+            const ruc = ($("#txtClienteRuc").val() || "").trim();
+            const razonSocial = ($("#txtClienteNombre").val() || "").trim();
+            consultarDigemid(ruc, razonSocial);
+        });
+        $("#btnCapturarImagenDigemid").on("click", function () {
+            capturarImagenDigemid();
+        });
+        $(document).off("click.digemidRow", "#tblDigemidResultados tbody tr").on("click.digemidRow", "#tblDigemidResultados tbody tr", function (e) {
+            e.stopPropagation();
+            seleccionarFilaDigemid(this);
+        });
         $("#btnActualizarNotasCredito").on("click", function () {
             if (!PV.Utils.puedeInteractuar()) return;
             const codigoCliente = $("#txtClienteCodigo").val();
@@ -687,6 +706,7 @@ PV.Cliente = (function () {
         PV._motivoBloqueo = null;
 
         desbloquearBusquedaCliente();
+        actualizarEstadoBotonDigemid();
         limpiarDireccionesCliente();
         limpiarNotasCreditoCliente();
         $("#tblDesgloseCredito tbody").empty();
@@ -694,6 +714,235 @@ PV.Cliente = (function () {
         if (PV.Detalle && typeof PV.Detalle.bloquearPorClienteBloqueado === "function") {
             PV.Detalle.bloquearPorClienteBloqueado(false);
         }
+    }
+
+    function actualizarEstadoBotonDigemid() {
+        $("#btnConsultarDigemid").prop("disabled", false);
+    }
+
+    function consultarDigemid(ruc, razonSocial) {
+        const codigoCliente = ($("#txtClienteCodigo").val() || "").trim();
+        ruc = (ruc || $("#txtClienteRuc").val() || "").trim();
+        razonSocial = (razonSocial || $("#txtClienteNombre").val() || "").trim();
+
+        if (!codigoCliente || !ruc) {
+            Swal.fire({
+                type: "warning",
+                title: "Cliente no seleccionado",
+                text: "Por favor seleccione un cliente primero para realizar la consulta en DIGEMID.",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        if (ruc.length !== 11) {
+            Swal.fire({
+                type: "warning",
+                title: "RUC requerido para DIGEMID",
+                text: "El cliente seleccionado cuenta con " + (ruc.length === 8 ? "DNI (" + ruc + ")" : "documento (" + ruc + ")") + ". El portal oficial de DIGEMID requiere un número de RUC de 11 dígitos para consultar el establecimiento farmacéutico.",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: "Consultando DIGEMID...",
+            html: "Obteniendo información del establecimiento farmacéutico para el RUC <b>" + PV.esc(ruc) + "</b>",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            onBeforeOpen: function () {
+                Swal.showLoading();
+            }
+        });
+
+        $.ajax({
+            url: "/PuntoVenta/ConsultarDigemid",
+            type: "GET",
+            data: { ruc: ruc },
+            dataType: "json",
+            success: function (resp) {
+                Swal.close();
+                if (resp && (resp.success || resp.Success)) {
+                    const datos = resp.establecimientos || resp.Establecimientos || resp.data || resp.Data || [];
+                    const rs = razonSocial || (datos.length > 0 ? (datos[0].razonSocial || datos[0].RazonSocial) : ($("#txtClienteNombre").val() || "-"));
+
+                    $("#lblDigemidClienteNombre").text(rs);
+                    $("#lblDigemidClienteRuc").text(ruc);
+                    $("#lblDigemidCoincidencias").text("Coincidencias: " + datos.length + " registro(s)");
+
+                    const ahora = new Date();
+                    const fechaFmt = ("0" + ahora.getDate()).slice(-2) + "/" +
+                        ("0" + (ahora.getMonth() + 1)).slice(-2) + "/" +
+                        ahora.getFullYear() + " " +
+                        ("0" + ahora.getHours()).slice(-2) + ":" +
+                        ("0" + ahora.getMinutes()).slice(-2) + ":" +
+                        ("0" + ahora.getSeconds()).slice(-2);
+                    $("#lblDigemidFechaConsulta").text(fechaFmt);
+
+                    let tbodyHtml = "";
+                    if (datos.length > 0) {
+                        datos.forEach(function (item, idx) {
+                            const itemNum = item.item || item.Item || (idx + 1);
+                            const situacion = item.situacion || item.Situacion || "";
+                            const sitUpper = situacion.trim().toUpperCase();
+                            const numReg = item.numeroRegistro || item.NumeroRegistro || "";
+                            const cat = item.categoria || item.Categoria || "";
+                            const nomCom = item.nombreComercial || item.NombreComercial || "";
+                            const razSoc = item.razonSocial || item.RazonSocial || "";
+                            const rucEst = item.ruc || item.Ruc || "";
+                            const dir = item.direccion || item.Direccion || "";
+                            const ubi = item.ubigeo || item.Ubigeo || "";
+                            const emp = item.empadronado || item.Empadronado || "NO APLICA";
+
+                            let badgeSituacion = "";
+                            if (sitUpper === "ACTIVO") {
+                                badgeSituacion = '<span class="badge" style="background-color:#1ab394; color:#ffffff; font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;"><i class="fa fa-check-circle mr-1"></i>ACTIVO</span>';
+                            } else if (sitUpper.indexOf("CIERRE") !== -1 || sitUpper.indexOf("SUSPENSION") !== -1 || sitUpper.indexOf("BAJA") !== -1 || sitUpper.indexOf("CANCELADO") !== -1 || sitUpper.indexOf("NO") !== -1) {
+                                badgeSituacion = '<span class="badge" style="background-color:#ed5565; color:#ffffff; font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;"><i class="fa fa-times-circle mr-1"></i>' + PV.esc(situacion) + '</span>';
+                            } else {
+                                badgeSituacion = '<span class="badge badge-warning" style="font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;">' + PV.esc(situacion || "DESCONOCIDO") + '</span>';
+                            }
+
+                            tbodyHtml += '<tr class="fila-digemid-item" style="cursor:pointer;">' +
+                                '<td class="text-center font-bold" style="vertical-align:middle;">' + itemNum + '</td>' +
+                                '<td class="text-center font-bold text-navy" style="vertical-align:middle;">' + PV.esc(numReg) + '</td>' +
+                                '<td class="text-center font-bold" style="vertical-align:middle;">' + PV.esc(cat) + '</td>' +
+                                '<td style="vertical-align:middle;">' + PV.esc(nomCom) + '</td>' +
+                                '<td style="vertical-align:middle;">' + PV.esc(razSoc) + '</td>' +
+                                '<td class="text-center font-bold" style="vertical-align:middle;">' + PV.esc(rucEst) + '</td>' +
+                                '<td style="vertical-align:middle;"><small>' + PV.esc(dir) + '</small></td>' +
+                                '<td style="vertical-align:middle;"><small>' + PV.esc(ubi) + '</small></td>' +
+                                '<td class="text-center" style="vertical-align:middle;">' + badgeSituacion + '</td>' +
+                                '<td class="text-center" style="vertical-align:middle;"><small class="font-bold">' + PV.esc(emp) + '</small></td>' +
+                                '</tr>';
+                        });
+                    } else {
+                        tbodyHtml = '<tr><td colspan="10" class="text-center text-muted p-4"><i class="fa fa-info-circle fa-2x mb-2 d-block text-warning"></i>No se encontraron registros de establecimientos en DIGEMID para el RUC especificado.</td></tr>';
+                    }
+
+                    $("#tblDigemidResultados tbody").html(tbodyHtml);
+                    if (datos.length === 1) {
+                        seleccionarFilaDigemid($("#tblDigemidResultados tbody tr:first")[0]);
+                    }
+                    $("#modalConsultaDigemid").modal("show");
+                } else {
+                    const msgError = (resp && (resp.error || resp.Error || resp.mensajeResumen || resp.MensajeResumen || resp.message || resp.Message)) || "Error al obtener datos de DIGEMID.";
+                    Swal.fire({
+                        type: "error",
+                        title: "Consulta DIGEMID",
+                        text: msgError,
+                        confirmButtonColor: "#1ab394"
+                    });
+                }
+            },
+            error: function (xhr) {
+                Swal.close();
+                console.error("Error al consultar DIGEMID:", xhr.responseText);
+                var errDetail = "No se pudo conectar con el servicio de DIGEMID.";
+                try {
+                    var jsonErr = JSON.parse(xhr.responseText);
+                    if (jsonErr && (jsonErr.error || jsonErr.Error || jsonErr.message || jsonErr.Message || jsonErr.mensajeResumen)) {
+                        errDetail = jsonErr.error || jsonErr.Error || jsonErr.message || jsonErr.Message || jsonErr.mensajeResumen;
+                    }
+                } catch (e) { }
+
+                Swal.fire({
+                    type: "error",
+                    title: "Error en Consulta DIGEMID",
+                    text: errDetail,
+                    confirmButtonColor: "#1ab394"
+                });
+            }
+        });
+    }
+
+    function seleccionarFilaDigemid(elementoTr) {
+        if (!elementoTr) return;
+        var $tr = $(elementoTr);
+        if ($tr.find("td[colspan]").length > 0) return; // Ignorar fila vacía / mensaje
+
+        var yaSeleccionado = $tr.hasClass("fila-digemid-seleccionada");
+
+        // Quitar selección de todas las filas
+        $("#tblDigemidResultados tbody tr").removeClass("fila-digemid-seleccionada");
+        $("#tblDigemidResultados tbody tr td").each(function () {
+            this.style.removeProperty("background-color");
+            this.style.removeProperty("color");
+        });
+
+        if (!yaSeleccionado) {
+            $tr.addClass("fila-digemid-seleccionada");
+            $tr.find("td").each(function () {
+                this.style.setProperty("background-color", "#fff275", "important");
+                this.style.setProperty("color", "#1a1a1a", "important");
+            });
+        }
+    }
+
+    function capturarImagenDigemid() {
+        if (typeof html2canvas !== "function") {
+            Swal.fire({
+                type: "error",
+                title: "Módulo no disponible",
+                text: "No se encontró el módulo de captura html2canvas.",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        const $filaSeleccionada = $("#tblDigemidResultados tbody tr.fila-digemid-seleccionada");
+        if ($filaSeleccionada.length === 0) {
+            Swal.fire({
+                type: "warning",
+                title: "Seleccione un establecimiento",
+                text: "Debe hacer clic sobre la fila del establecimiento farmacéutico correspondiente para seleccionarla antes de realizar la captura.",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        const $btn = $("#btnCapturarImagenDigemid");
+        const originalHtml = $btn.html();
+        $btn.prop("disabled", true).html('<i class="fa fa-spinner fa-spin mr-1"></i> Generando imagen...');
+
+        const areaElement = document.getElementById("areaCapturaDigemid");
+        const ruc = ($("#lblDigemidClienteRuc").text() || "DIGEMID").trim();
+        const ahora = new Date();
+        const fechaHora = ahora.getFullYear() +
+            ("0" + (ahora.getMonth() + 1)).slice(-2) +
+            ("0" + ahora.getDate()).slice(-2) + "_" +
+            ("0" + ahora.getHours()).slice(-2) +
+            ("0" + ahora.getMinutes()).slice(-2) +
+            ("0" + ahora.getSeconds()).slice(-2);
+
+        html2canvas(areaElement, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff"
+        }).then(function (canvas) {
+            $btn.prop("disabled", false).html(originalHtml);
+
+            const imgData = canvas.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.download = "DIGEMID_" + ruc + "_" + fechaHora + ".png";
+            link.href = imgData;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            if (typeof toastr !== "undefined") {
+                toastr.success("Captura de DIGEMID descargada exitosamente.");
+            }
+        }).catch(function (err) {
+            $btn.prop("disabled", false).html(originalHtml);
+            console.error("Error al capturar imagen DIGEMID:", err);
+            Swal.fire({
+                type: "error",
+                title: "Error al capturar",
+                text: "Ocurrió un error al generar la captura en imagen del resultado.",
+                confirmButtonColor: "#1ab394"
+            });
+        });
     }
 
     function validarClienteBloqueado(codigoCliente) {
@@ -780,6 +1029,9 @@ PV.Cliente = (function () {
         inicializar: inicializar,
         inicializarAutocompleteCliente: inicializarAutocompleteCliente,
         limpiarSeleccionCliente: limpiarSeleccionCliente,
+        actualizarEstadoBotonDigemid: actualizarEstadoBotonDigemid,
+        consultarDigemid: consultarDigemid,
+        capturarImagenDigemid: capturarImagenDigemid,
         bloquearBusquedaCliente: bloquearBusquedaCliente,
         cancelarPeticionesPendientes: cancelarPeticionesPendientes,
         cargarNotasCreditoCliente: cargarNotasCreditoCliente,
@@ -790,7 +1042,8 @@ PV.Cliente = (function () {
         aplicarEstadoCreditoDesdeSap: aplicarEstadoCreditoDesdeSap,
         aplicarEstadoCreditoDesdeSqlServer: aplicarEstadoCreditoDesdeSqlServer,
         validarClienteBloqueado: validarClienteBloqueado,
-        mostrarInfoControladosDireccion: mostrarInfoControladosDireccion
+        mostrarInfoControladosDireccion: mostrarInfoControladosDireccion,
+        seleccionarFilaDigemid: seleccionarFilaDigemid
     };
 
 })();

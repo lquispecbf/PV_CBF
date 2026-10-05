@@ -65,7 +65,7 @@ namespace UI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en proxy GET {Url}", relativeUrl);
-                return StatusCode(500, new { error = "Error al comunicar con el servicio central: " + ex.Message });
+                return StatusCode(500, new { error = "No se pudo comunicar con el servicio central. Intente nuevamente en unos momentos." });
             }
         }
 
@@ -85,7 +85,7 @@ namespace UI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en proxy POST {Url}", relativeUrl);
-                return StatusCode(500, new { error = "Error al comunicar con el servicio central: " + ex.Message });
+                return StatusCode(500, new { error = "No se pudo comunicar con el servicio central. Intente nuevamente en unos momentos." });
             }
         }
 
@@ -111,7 +111,7 @@ namespace UI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en proxy File POST {Url}", relativeUrl);
-                return StatusCode(500, new { error = "Error al exportar archivo: " + ex.Message });
+                return StatusCode(500, new { error = "No se pudo generar el archivo. Intente nuevamente en unos momentos." });
             }
         }
 
@@ -168,13 +168,13 @@ namespace UI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error en proxy File GET {Url}", relativeUrl);
-                return StatusCode(500, new { error = "Error al generar reporte: " + ex.Message });
+                return StatusCode(500, new { error = "No se pudo generar el reporte. Intente nuevamente en unos momentos." });
             }
         }
         #endregion
 
         [HttpGet]
-        public IActionResult KeepAlive()
+        public async Task<IActionResult> KeepAlive()
         {
             var idUsuario = HttpContext.Session.GetString("SESSION_ID_USUARIO");
             if (string.IsNullOrEmpty(idUsuario))
@@ -185,7 +185,57 @@ namespace UI.Controllers
             if (EsUsuarioMantenerSesion())
             {
                 HttpContext.Session.SetString("SESSION_LAST_KEEPALIVE", DateTime.UtcNow.Ticks.ToString());
-                return Ok(new { success = true, keepAlive = true });
+
+                // Verificar si el token está próximo a expirar (menos de 60 minutos restantes)
+                bool debeRenovar = false;
+                var expStr = HttpContext.Session.GetString("SESSION_TOKEN_EXPIRATION");
+                if (!string.IsNullOrWhiteSpace(expStr) && DateTime.TryParse(expStr, out DateTime expirationTime))
+                {
+                    if (expirationTime <= DateTime.UtcNow.AddMinutes(60))
+                    {
+                        debeRenovar = true;
+                    }
+                }
+                else
+                {
+                    var token = HttpContext.Session.GetString("SESSION_JWT_TOKEN");
+                    if (!string.IsNullOrWhiteSpace(token))
+                    {
+                        try
+                        {
+                            var parts = token.Split('.');
+                            if (parts.Length >= 2)
+                            {
+                                string payloadBase64 = parts[1];
+                                payloadBase64 = payloadBase64.PadRight(payloadBase64.Length + (4 - payloadBase64.Length % 4) % 4, '=')
+                                                             .Replace('_', '/').Replace('-', '+');
+                                var jsonPayload = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payloadBase64));
+                                var tokenData = Newtonsoft.Json.Linq.JObject.Parse(jsonPayload);
+                                if (tokenData["exp"] != null)
+                                {
+                                    long expSeconds = tokenData.Value<long>("exp");
+                                    var expirationTimeUtc = DateTimeOffset.FromUnixTimeSeconds(expSeconds).UtcDateTime;
+                                    if (expirationTimeUtc <= DateTime.UtcNow.AddMinutes(60))
+                                    {
+                                        debeRenovar = true;
+                                    }
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            debeRenovar = true;
+                        }
+                    }
+                }
+
+                bool tokenRenovado = false;
+                if (debeRenovar)
+                {
+                    tokenRenovado = await _apiClient.RenovarTokenSesionAsync();
+                }
+
+                return Ok(new { success = true, keepAlive = true, tokenRenovado });
             }
 
             return Ok(new { success = true, keepAlive = false });
@@ -804,6 +854,15 @@ namespace UI.Controllers
         public async Task<IActionResult> ActualizarCondicionPago([FromBody] ActualizarCondicionPagoRequestDTO request)
         {
             return await ProxyPostAsync("api/PuntoVenta/ActualizarCondicionPago", request);
+        }
+
+        // ========== CONSULTA / SCRAPING DIGEMID ==========
+
+        [RequierePermisoModulo("PuntoVenta:Venta")]
+        [HttpGet]
+        public async Task<IActionResult> ConsultarDigemid(string ruc)
+        {
+            return await ProxyGetAsync($"api/PuntoVenta/ConsultarDigemid?ruc={Uri.EscapeDataString(ruc ?? "")}");
         }
 
         #endregion

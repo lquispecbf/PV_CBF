@@ -60,6 +60,7 @@ namespace UI.Filters
             }
 
             bool tieneAlgunPermiso = false;
+            bool sesionExpirada = false;
 
             foreach (var permiso in _permisos)
             {
@@ -76,6 +77,12 @@ namespace UI.Filters
                 try
                 {
                     var response = await apiClient.GetAsync($"api/Auth/validar-permiso?controller={controllerModulo}&action={actionModulo}");
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        sesionExpirada = true;
+                        break;
+                    }
+
                     if (response.IsSuccessStatusCode)
                     {
                         var content = await response.Content.ReadAsStringAsync();
@@ -93,6 +100,23 @@ namespace UI.Filters
                 {
                     // Ante error de red/servidor no asumimos permiso concedido
                 }
+            }
+
+            if (sesionExpirada)
+            {
+                if (EsPeticionAjax(context))
+                {
+                    context.HttpContext.Response.Headers["X-Session-Expired"] = "true";
+                    context.Result = new JsonResult(new { success = false, error = "SESSION_EXPIRED", mensaje = "Su sesión ha caducado. Por favor, vuelva a iniciar sesión." })
+                    {
+                        StatusCode = StatusCodes.Status401Unauthorized
+                    };
+                }
+                else
+                {
+                    context.Result = new RedirectToActionResult("Login", "Seguridad", null);
+                }
+                return;
             }
 
             if (!tieneAlgunPermiso)

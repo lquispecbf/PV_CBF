@@ -12,5 +12,7 @@ namespace UI.Services
         Task<HttpResponseMessage> GetAsync(string relativeUrl);
         Task<T?> GetFromJsonAsync<T>(string relativeUrl);
         Task<TResponse?> PostJsonAsync<TRequest, TResponse>(string relativeUrl, TRequest body);
+        Task<bool> RenovarTokenSesionAsync();
     }
 }
+
