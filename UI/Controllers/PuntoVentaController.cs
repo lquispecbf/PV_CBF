@@ -856,13 +856,14 @@ namespace UI.Controllers
             return await ProxyPostAsync("api/PuntoVenta/ActualizarCondicionPago", request);
         }
 
-        // ========== CONSULTA / SCRAPING DIGEMID ==========
+        // ========== LISTA DE PRECIOS CLIENTE (EXCEL) ==========
 
         [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpGet]
-        public async Task<IActionResult> ConsultarDigemid(string ruc)
+        public async Task<IActionResult> ExportarListaPreciosCliente([FromQuery] string? itemCode = null)
         {
-            return await ProxyGetAsync($"api/PuntoVenta/ConsultarDigemid?ruc={Uri.EscapeDataString(ruc ?? "")}");
+            var query = string.IsNullOrWhiteSpace(itemCode) ? "" : $"?itemCode={Uri.EscapeDataString(itemCode.Trim())}";
+            return await ProxyFileGetAsync($"api/PuntoVenta/ExportarListaPreciosCliente{query}", $"LISTA DE PRECIOS CBF {DateTime.Now:dd-MM-yyyy}.xlsx");
         }
 
         #endregion

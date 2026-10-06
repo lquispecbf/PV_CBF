@@ -177,6 +177,11 @@ $(document).ready(function () {
         e.preventDefault();
     });
 
+    $("#btnBusquedaListaPrecios").on("click", function (e) {
+        e.preventDefault();
+        descargarListaPreciosCliente();
+    });
+
     $("#btnBusquedaEnviarWms").on("click", function (e) {
         e.preventDefault();
         enviarWmsDesdeBusqueda();
@@ -878,6 +883,68 @@ function imprimirPreliminarSapDesdeBusqueda() {
         docEntryOwtr: docEntryOwtr,
         whs: whs,
         nroSap: nroSap
+    });
+}
+
+function descargarListaPreciosCliente() {
+    if (PV.Utils && PV.Utils._procesando) return;
+
+    var $btn = $("#btnBusquedaListaPrecios");
+    var htmlOriginal = $btn.html();
+
+    // Activar únicamente el loading nativo de la intranet
+    $btn.prop("disabled", true).html('<i class="fa fa-spinner fa-spin"></i> Generando...');
+    $("body").addClass("loading");
+
+    var url = "/PuntoVenta/ExportarListaPreciosCliente";
+
+    fetch(url, {
+        method: "GET",
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+    .then(async function (response) {
+        if (!response.ok) {
+            var errorText = await response.text();
+            try {
+                var json = JSON.parse(errorText);
+                throw new Error(json.error || json.mensaje || "Error al generar el archivo.");
+            } catch (ex) {
+                throw new Error(errorText || "Error al comunicarse con el servidor.");
+            }
+        }
+
+        var disposition = response.headers.get("Content-Disposition");
+        var fileName = "LISTA DE PRECIOS CBF " + new Date().toLocaleDateString("es-PE").replace(/\//g, "-") + ".xlsx";
+        if (disposition && disposition.indexOf("filename=") !== -1) {
+            var filenameRegex = /filename\*?=['"]?(?:UTF-8'')?([^;'"]+)['"]?/i;
+            var matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                fileName = decodeURIComponent(matches[1]);
+            }
+        }
+
+        return response.blob().then(function (blob) {
+            return { blob: blob, fileName: fileName };
+        });
+    })
+    .then(function (result) {
+        var blobUrl = window.URL.createObjectURL(result.blob);
+        var a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = result.fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(blobUrl);
+    })
+    .catch(function (error) {
+        console.error("Error al exportar lista de precios:", error);
+        alert(error.message || "Ocurrió un problema al generar la lista de precios.");
+    })
+    .finally(function () {
+        // Desactivar el loading nativo al finalizar
+        $("body").removeClass("loading");
+        $btn.prop("disabled", false).html(htmlOriginal);
     });
 }
 
