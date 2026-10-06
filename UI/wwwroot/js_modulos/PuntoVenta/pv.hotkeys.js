@@ -505,13 +505,6 @@ PV.Hotkeys = (function () {
             _$controlInvocadorBusqueda = null;
         }
 
-        if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
-            if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
-                _bloqueoAperturaBusqueda = false;
-                return;
-            }
-        }
-
         if (PV._clienteBloqueado) {
             _bloqueoAperturaBusqueda = false;
             Swal.fire({
@@ -602,17 +595,8 @@ PV.Hotkeys = (function () {
         _seleccionAvanzadaCodigos = [];
         $("#chkSeleccionarTodosAvanzada").prop("checked", false);
 
-        var listaPrecio = $("#ddlClienteListaPrecio").val();
-        var almacen = $("#ddlVentaAlmacen").val();
-
-        if (!listaPrecio || !almacen) {
-            Swal.fire({
-                type: "warning",
-                title: "Faltan datos",
-                text: "Seleccione lista de precios y almacén primero."
-            });
-            return;
-        }
+        var listaPrecio = $("#ddlClienteListaPrecio").val() || "1";
+        var almacen = $("#ddlVentaAlmacen").val() || $("#ddlPuntoEmision").val() || "01";
 
         $("body").addClass("loading");
 
@@ -754,6 +738,18 @@ PV.Hotkeys = (function () {
     }
 
     function insertarArticuloIndividualBusqueda(item) {
+        var clienteCodigo = ($("#txtClienteCodigo").val() || "").trim();
+        if (!clienteCodigo) {
+            Swal.fire({
+                type: "warning",
+                title: "Cliente Requerido",
+                text: "Debe seleccionar un cliente antes de agregar artículos al detalle de la venta.",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
         _procesandoSeleccionAvanzada = true;
 
         var $filaDestino = _$filaModalBusqueda;
@@ -808,6 +804,24 @@ PV.Hotkeys = (function () {
 
     function seleccionarArticuloBusqueda() {
         if (_procesandoSeleccionAvanzada) return;
+
+        var clienteCodigo = ($("#txtClienteCodigo").val() || "").trim();
+        if (!clienteCodigo) {
+            Swal.fire({
+                type: "warning",
+                title: "Cliente Requerido",
+                text: "Debe seleccionar un cliente antes de agregar artículos al detalle de la venta.",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
+            if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
+                return;
+            }
+        }
 
         var $seleccionada = $("#tblBusquedaAvanzada").find("tr.selected");
 
@@ -884,6 +898,18 @@ PV.Hotkeys = (function () {
     }
 
     function ejecutarInsercionArticulosEnLote(items) {
+        var clienteCodigo = ($("#txtClienteCodigo").val() || "").trim();
+        if (!clienteCodigo) {
+            Swal.fire({
+                type: "warning",
+                title: "Cliente Requerido",
+                text: "Debe seleccionar un cliente antes de agregar artículos al detalle de la venta.",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
         _procesandoSeleccionAvanzada = true;
 
         var total = items.length;
@@ -981,6 +1007,24 @@ PV.Hotkeys = (function () {
 
     function agregarArticulosSeleccionados() {
         if (_procesandoSeleccionAvanzada) return;
+
+        var clienteCodigo = ($("#txtClienteCodigo").val() || "").trim();
+        if (!clienteCodigo) {
+            Swal.fire({
+                type: "warning",
+                title: "Cliente Requerido",
+                text: "Debe seleccionar un cliente antes de agregar artículos al detalle de la venta.",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#1ab394"
+            });
+            return;
+        }
+
+        if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
+            if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
+                return;
+            }
+        }
 
         if (_seleccionAvanzadaCodigos.length === 0) {
             Swal.fire({ type: "warning", title: "Sin selección", text: "Seleccione al menos un artículo con el checkbox." });
