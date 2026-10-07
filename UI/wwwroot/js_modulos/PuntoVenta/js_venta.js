@@ -685,6 +685,22 @@ function buscarVentas(onComplete) {
             actualizarBarraAccionesBusqueda();
             $("#btnBusquedaExportar").prop("disabled", true);
             if (esErrorSesion(xhr)) return;
+
+            if (xhr.status === 403) {
+                var msgForbidden = "No cuenta con permisos para consultar o buscar ventas.";
+                if (xhr.responseJSON && xhr.responseJSON.mensaje) {
+                    msgForbidden = xhr.responseJSON.mensaje;
+                } else if (xhr.responseJSON && xhr.responseJSON.error && xhr.responseJSON.error !== "FORBIDDEN") {
+                    msgForbidden = xhr.responseJSON.error;
+                }
+                Swal.fire({
+                    type: "warning",
+                    title: "Acceso Denegado",
+                    text: msgForbidden
+                });
+                return;
+            }
+
             var msg = "Error al buscar ventas.";
             if (xhr.responseJSON && xhr.responseJSON.error) {
                 msg = xhr.responseJSON.error;
@@ -1983,6 +1999,16 @@ function cargarVentaEditable(resp, docStatus, estadoEnvio) {
 
     PV.Detalle.setFormReadOnly(false);
 
+    if (PV.Cliente) {
+        if (resp && resp.DIGEMID) {
+            PV.Cliente.fijarCapturaActual(resp.DIGEMID);
+        } else if (resp && resp.DOCENTRY && resp.DOCENTRY > 0) {
+            PV.Cliente.cargarDigemidPorDocEntry(resp.DOCENTRY);
+        } else {
+            PV.Cliente.limpiarCapturaDigemid();
+        }
+    }
+
     cargarDetalleEditableOptimizado(resp);
 }
 
@@ -2255,6 +2281,16 @@ function recargarDetalleDesdeSAP(resp, docStatus, estadoEnvio) {
     $("#txtVentaNeto").val(resp.IMP_NET ? resp.IMP_NET.toFixed(2) : "0.00");
 
     PV.Detalle.setFormReadOnly(false);
+
+    if (PV.Cliente) {
+        if (resp && resp.DIGEMID) {
+            PV.Cliente.fijarCapturaActual(resp.DIGEMID);
+        } else if (resp && resp.DOCENTRY && resp.DOCENTRY > 0) {
+            PV.Cliente.cargarDigemidPorDocEntry(resp.DOCENTRY);
+        } else {
+            PV.Cliente.limpiarCapturaDigemid();
+        }
+    }
 
     var itemsLocal = resp.DETALLE || [];
     var listaPrecio = resp.PRICE_LIST || "";
@@ -2582,6 +2618,14 @@ function cargarVentaReadOnly(resp) {
 
     // Bloquear formulario en modo lectura
     PV.Detalle.setFormReadOnly(true);
+
+    if (PV.Cliente) {
+        if (resp && resp.DOCENTRY && resp.DOCENTRY > 0) {
+            PV.Cliente.cargarDigemidPorDocEntry(resp.DOCENTRY);
+        } else {
+            PV.Cliente.limpiarCapturaDigemid();
+        }
+    }
 
     // Poblar detalle en lote ultrarrápido
     if (resp.DETALLE && resp.DETALLE.length > 0) {

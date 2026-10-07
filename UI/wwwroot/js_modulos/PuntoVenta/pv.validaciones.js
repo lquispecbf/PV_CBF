@@ -526,6 +526,30 @@ PV.Validaciones = (function () {
         const descuentoLinea = Math.max(descuentoTotal - orinTotal, 0);
         const neto = parseFloat($("#txtVentaNeto").val()) || 0;
 
+        let digemidData = null;
+        if (PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function") {
+            const cap = PV.Cliente.obtenerCapturaActual();
+            if (cap) {
+                digemidData = {
+                    ID_DIGEMID_PV: cap.idDigemidPv || cap.ID_DIGEMID_PV || 0,
+                    DOCENTRY: parseInt($("#hdfDocEntry").val()) || cap.docEntry || cap.DOCENTRY || 0,
+                    DOCENTRY_SAP: parseInt($("#hdfDocEntrySap").val()) || cap.docEntrySap || cap.DOCENTRY_SAP || null,
+                    CARDCODE: ($("#txtClienteCodigo").val() || "").trim(),
+                    CARDNAME: ($("#txtClienteNombre").val() || "").trim(),
+                    LICTRADNUM: ($("#txtClienteRuc").val() || "").trim(),
+                    FECHA_CONSULTA: cap.fechaConsulta || cap.FECHA_CONSULTA || new Date().toISOString(),
+                    FECHA_CAPTURA: cap.fechaCaptura || cap.FECHA_CAPTURA || new Date().toISOString(),
+                    NOMBRE_ARCHIVO: cap.nombreArchivo || cap.NOMBRE_ARCHIVO || "",
+                    ESTADO_SERVICIO_DIGEMID: cap.estadoServicioDigemid || cap.ESTADO_SERVICIO_DIGEMID || "EXITOSO",
+                    TIENE_DATA_DIGEMID: cap.tieneDataDigemid !== undefined ? cap.tieneDataDigemid : (cap.TIENE_DATA_DIGEMID !== undefined ? cap.TIENE_DATA_DIGEMID : true),
+                    ESTABLECIMIENTO_JSON: cap.establecimientoJson || cap.ESTABLECIMIENTO_JSON || "",
+                    IMAGEN_BASE64: cap.imagenBase64 || cap.IMAGEN_BASE64 || "",
+                    REQUIERE_REGULARIZACION: cap.requiereRegularizacion === true || cap.REQUIERE_REGULARIZACION === true,
+                    OBSERVACION: cap.observacion || cap.OBSERVACION || ""
+                };
+            }
+        }
+
         return {
             OBJTYPE: "17",
             WHSCODE: $("#ddlVentaAlmacen").val() || "",
@@ -564,6 +588,7 @@ PV.Validaciones = (function () {
             DOCENTRY_SAP: parseInt($("#hdfDocEntrySap").val()) || null,
             DOCSTATUS: docstatus || "Z",
             DOCSTATUS_ORIGINAL: $("#hdfDocStatusOriginal").val() || "",
+            DIGEMID: digemidData,
             DETALLE: detalle,
             NOTAS_CREDITO: recolectarNotasCredito()
         };
@@ -718,6 +743,108 @@ PV.Validaciones = (function () {
                 confirmButtonText: "Aceptar"
             });
             return;
+        }
+
+        // Validación DIGEMID para clientes con RUC (11 dígitos)
+        const docCliente = ($("#txtClienteRuc").val() || "").trim().replace(/\D/g, "");
+        if (docCliente.length === 11) {
+            const captura = PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function" ? PV.Cliente.obtenerCapturaActual() : null;
+            const tieneCaptura = captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0));
+
+            if (tieneCaptura) {
+                // Validación 1: El RUC de la captura debe coincidir con el cliente actual
+                const rucCaptura = (captura.licTradNum || captura.LICTRADNUM || "").trim().replace(/\D/g, "");
+                if (rucCaptura && rucCaptura !== docCliente) {
+                    Swal.fire({
+                        type: "warning",
+                        title: "RUC de Captura No Coincide",
+                        text: "La constancia DIGEMID actual corresponde al RUC " + rucCaptura + ", pero el cliente actual tiene RUC " + docCliente + ". Debe consultar y capturar DIGEMID para el cliente seleccionado.",
+                        confirmButtonText: "Consultar DIGEMID Ahora",
+                        confirmButtonColor: "#1ab394"
+                    }).then(function () {
+                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
+                            PV.Cliente.consultarDigemid();
+                        }
+                    });
+                    return;
+                }
+
+                // Validación 2: Regla de Frescura (Mismo día calendario)
+                const rawFecha = captura.fechaCaptura || captura.FECHA_CAPTURA || captura.fechaConsulta || captura.FECHA_CONSULTA;
+                let esMismoDia = false;
+                if (rawFecha) {
+                    const dCaptura = new Date(rawFecha);
+                    const dHoy = new Date();
+                    esMismoDia = !isNaN(dCaptura.getTime()) &&
+                        dCaptura.getFullYear() === dHoy.getFullYear() &&
+                        dCaptura.getMonth() === dHoy.getMonth() &&
+                        dCaptura.getDate() === dHoy.getDate();
+                }
+
+                if (!esMismoDia) {
+                    Swal.fire({
+                        type: "warning",
+                        title: "Constancia DIGEMID Vencida",
+                        text: "La captura de DIGEMID corresponde a una fecha anterior. Por normativa, debe volver a consultar y capturar la constancia DIGEMID del día de hoy antes de guardar la venta.",
+                        confirmButtonText: "Consultar DIGEMID Ahora",
+                        confirmButtonColor: "#1ab394"
+                    }).then(function () {
+                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
+                            PV.Cliente.consultarDigemid();
+                        }
+                    });
+                    return;
+                }
+            } else {
+                // No hay captura: verificar si el servicio falló o está caído para permitir modo de contingencia
+                const estadoServicio = PV.Cliente && typeof PV.Cliente.obtenerEstadoServicio === "function" ? PV.Cliente.obtenerEstadoServicio() : null;
+                if (estadoServicio && estadoServicio.disponible === false) {
+                    const resultContingencia = await Swal.fire({
+                        type: "warning",
+                        title: "Modo de Contingencia DIGEMID",
+                        html: "El servicio de DIGEMID no estuvo disponible al momento de la consulta.<br><small class='text-danger font-bold'>" + PV.esc(estadoServicio.motivo || "Servicio no disponible o bloqueado temporalmente") + "</small><br><br>¿Desea registrar la venta en <strong>modo de contingencia</strong>? La venta quedará guardada como <strong>Pendiente de Regularización</strong> de DIGEMID.",
+                        showCancelButton: true,
+                        confirmButtonText: "Sí, guardar en contingencia",
+                        cancelButtonText: "Cancelar y reintentar",
+                        confirmButtonColor: "#f8ac59",
+                        cancelButtonColor: "#d33"
+                    });
+
+                    if (!resultContingencia.value) {
+                        return;
+                    }
+
+                    // Establecer captura en contingencia
+                    PV.Cliente.fijarCapturaActual({
+                        docEntry: parseInt($("#hdfDocEntry").val()) || 0,
+                        cardCode: ($("#txtClienteCodigo").val() || "").trim(),
+                        cardName: ($("#txtClienteNombre").val() || "").trim(),
+                        licTradNum: docCliente,
+                        fechaConsulta: estadoServicio.fechaConsulta || new Date().toISOString(),
+                        fechaCaptura: new Date().toISOString(),
+                        nombreArchivo: "",
+                        imagenBase64: "",
+                        estadoServicioDigemid: "CONTINGENCIA",
+                        tieneDataDigemid: false,
+                        establecimientoJson: "",
+                        requiereRegularizacion: true,
+                        observacion: estadoServicio.motivo || "Grabado en contingencia por indisponibilidad de DIGEMID"
+                    });
+                } else {
+                    Swal.fire({
+                        type: "warning",
+                        title: "Constancia DIGEMID Requerida",
+                        text: "Para clientes con RUC es obligatorio consultar y capturar la información del establecimiento en DIGEMID antes de registrar la venta.",
+                        confirmButtonText: "Consultar DIGEMID Ahora",
+                        confirmButtonColor: "#1ab394"
+                    }).then(function () {
+                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
+                            PV.Cliente.consultarDigemid();
+                        }
+                    });
+                    return;
+                }
+            }
         }
 
         const request = recolectarRequest("Z");

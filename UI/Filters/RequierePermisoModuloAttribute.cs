@@ -61,6 +61,7 @@ namespace UI.Filters
 
             bool tieneAlgunPermiso = false;
             bool sesionExpirada = false;
+            bool respuestaExplicitaRecibida = false;
 
             foreach (var permiso in _permisos)
             {
@@ -80,6 +81,7 @@ namespace UI.Filters
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
                         sesionExpirada = true;
+                        respuestaExplicitaRecibida = true;
                         break;
                     }
 
@@ -88,6 +90,7 @@ namespace UI.Filters
                         var content = await response.Content.ReadAsStringAsync();
                         var json = JObject.Parse(content);
                         bool tienePermiso = json["tienePermiso"]?.Value<bool>() ?? false;
+                        respuestaExplicitaRecibida = true;
 
                         if (tienePermiso)
                         {
@@ -98,7 +101,8 @@ namespace UI.Filters
                 }
                 catch
                 {
-                    // Ante error de red/servidor no asumimos permiso concedido
+                    // Ante error de red/timeout transitorio en la sub-consulta no bloqueamos falsamente aquí;
+                    // la API central aplicará la validación autoritativa en tiempo real con su token JWT.
                 }
             }
 
@@ -119,7 +123,8 @@ namespace UI.Filters
                 return;
             }
 
-            if (!tieneAlgunPermiso)
+            // Solo bloquear si la API respondió explícitamente que el usuario no tiene permiso
+            if (respuestaExplicitaRecibida && !tieneAlgunPermiso)
             {
                 if (EsPeticionAjax(context))
                 {

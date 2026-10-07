@@ -130,6 +130,12 @@ PV.Cliente = (function () {
                     }
                 }
 
+                var rucAnterior = ($("#txtClienteRuc").val() || "").trim();
+                var codAnterior = ($("#txtClienteCodigo").val() || "").trim();
+                if ((c.RUC && c.RUC !== rucAnterior) || (c.CODIGO_CLIENTE && c.CODIGO_CLIENTE !== codAnterior)) {
+                    limpiarCapturaDigemid();
+                }
+
                 if (tipo === "ruc") {
                     $(this).val(c.RUC);
                 } else {
@@ -137,6 +143,7 @@ PV.Cliente = (function () {
                 }
 
                 actualizarEstadoBotonDigemid();
+                actualizarBadgeDigemid();
 
                 if (PV.DraftManager && typeof PV.DraftManager.notificarCambio === "function") {
                     PV.DraftManager.notificarCambio();
@@ -152,9 +159,82 @@ PV.Cliente = (function () {
         });
         $("#btnConsultarDigemid").on("click", function () {
             if (!PV.Utils.puedeInteractuar()) return;
+
+            const esModoLectura = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
             const ruc = ($("#txtClienteRuc").val() || "").trim();
             const razonSocial = ($("#txtClienteNombre").val() || "").trim();
+
+            // Si la orden ya tiene constancia DIGEMID capturada/cargada (y no requiere regularización)
+            if (_digemidCapturaActual && (_digemidCapturaActual.nombreArchivo || _digemidCapturaActual.imagenBase64) && !_digemidCapturaActual.requiereRegularizacion) {
+                mostrarVisorImagenDigemid(_digemidCapturaActual);
+                return;
+            }
+
+            if (esModoLectura) {
+                // Si la orden fue guardada en contingencia y está pendiente de regularizar
+                if (_digemidCapturaActual && _digemidCapturaActual.requiereRegularizacion) {
+                    $("#modalConsultaDigemidTitle").html('<i class="fa fa-exclamation-circle text-warning mr-2"></i> Regularizar Constancia DIGEMID (MINSA)');
+                    $("#seccionConsultaDigemid").show();
+                    $("#seccionVisorImagenDigemid").hide();
+                    $("#btnCapturarImagenDigemid").show().html('<i class="fa fa-camera mr-1"></i> Regularizar y Guardar DIGEMID');
+                    $("#btnRecapturarDigemid").hide();
+                    $("#btnDescargarImagenDigemid").hide();
+                    consultarDigemid(ruc, razonSocial);
+                    return;
+                }
+
+                // Si no cuenta con constancia registrada
+                Swal.fire({
+                    type: "info",
+                    title: "Constancia DIGEMID",
+                    text: "Esta orden de venta no cuenta con constancia DIGEMID registrada.",
+                    confirmButtonColor: "#1ab394"
+                });
+                return;
+            }
+
+            // Modo creación / edición cuando NO tiene imagen capturada previa (o servicio offline previo)
+            $("#modalConsultaDigemidTitle").html('<i class="fa fa-hospital-alt mr-2"></i> Consulta de Establecimiento Farmacéutico - DIGEMID (MINSA)');
+            $("#seccionConsultaDigemid").show();
+            $("#seccionVisorImagenDigemid").hide();
+            $("#btnCapturarImagenDigemid").show().html('<i class="fa fa-camera mr-1"></i> Capturar Imagen (PNG)');
+            $("#btnRecapturarDigemid").hide();
+            $("#btnDescargarImagenDigemid").hide();
             consultarDigemid(ruc, razonSocial);
+        });
+        $("#btnRecapturarDigemid").on("click", function () {
+            if (!PV.Utils.puedeInteractuar()) return;
+            const ruc = ($("#txtClienteRuc").val() || "").trim();
+            const razonSocial = ($("#txtClienteNombre").val() || "").trim();
+
+            Swal.fire({
+                title: "¿Eliminar captura actual?",
+                text: "¿Está seguro de eliminar la constancia DIGEMID actual para realizar una nueva consulta y captura?",
+                type: "question",
+                showCancelButton: true,
+                confirmButtonColor: "#f8ac59",
+                cancelButtonColor: "#6c757d",
+                confirmButtonText: "Sí, eliminar y volver a capturar",
+                cancelButtonText: "Cancelar"
+            }).then(function (result) {
+                if (!result.value) return;
+
+                // Borrar la captura previa para que se registre la nueva
+                _digemidCapturaActual = null;
+                actualizarBadgeDigemid();
+                if (PV.DraftManager && typeof PV.DraftManager.notificarCambio === "function") {
+                    PV.DraftManager.notificarCambio();
+                }
+
+                $("#modalConsultaDigemidTitle").html('<i class="fa fa-hospital-alt mr-2"></i> Actualizar Consulta DIGEMID (MINSA)');
+                $("#seccionVisorImagenDigemid").hide();
+                $("#seccionConsultaDigemid").show();
+                $("#btnRecapturarDigemid").hide();
+                $("#btnDescargarImagenDigemid").hide();
+                $("#btnCapturarImagenDigemid").show().html('<i class="fa fa-camera mr-1"></i> Capturar Imagen (PNG)');
+
+                consultarDigemid(ruc, razonSocial);
+            });
         });
         $("#btnCapturarImagenDigemid").on("click", function () {
             capturarImagenDigemid();
@@ -706,6 +786,7 @@ PV.Cliente = (function () {
         PV._motivoBloqueo = null;
 
         desbloquearBusquedaCliente();
+        limpiarCapturaDigemid();
         actualizarEstadoBotonDigemid();
         limpiarDireccionesCliente();
         limpiarNotasCreditoCliente();
@@ -716,8 +797,179 @@ PV.Cliente = (function () {
         }
     }
 
+    var _digemidCapturaActual = null;
+    var _estadoServicioDigemid = { disponible: true, motivo: "", fechaConsulta: null };
+
+    function limpiarCapturaDigemid() {
+        _digemidCapturaActual = null;
+        _estadoServicioDigemid = { disponible: true, motivo: "", fechaConsulta: null };
+        actualizarBadgeDigemid();
+    }
+
+    function obtenerCapturaActual() {
+        return _digemidCapturaActual;
+    }
+
+    function fijarCapturaActual(captura) {
+        _digemidCapturaActual = captura || null;
+        actualizarBadgeDigemid();
+    }
+
+    function obtenerEstadoServicio() {
+        return _estadoServicioDigemid;
+    }
+
+    function fijarEstadoServicio(estado) {
+        _estadoServicioDigemid = estado || { disponible: true, motivo: "", fechaConsulta: null };
+        actualizarBadgeDigemid();
+    }
+
+    function obtenerFechaLocalIso(d) {
+        d = d || new Date();
+        var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+        return d.getFullYear() + "-" +
+            pad(d.getMonth() + 1) + "-" +
+            pad(d.getDate()) + "T" +
+            pad(d.getHours()) + ":" +
+            pad(d.getMinutes()) + ":" +
+            pad(d.getSeconds());
+    }
+
+    function parsearFechaLocal(fechaVal) {
+        if (!fechaVal) return new Date();
+        if (fechaVal instanceof Date) return fechaVal;
+
+        var s = String(fechaVal).trim();
+        // Extraer componentes numéricos de forma directa para evitar corrimientos por UTC
+        var m = s.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+        if (m) {
+            return new Date(
+                parseInt(m[1], 10),
+                parseInt(m[2], 10) - 1,
+                parseInt(m[3], 10),
+                parseInt(m[4], 10),
+                parseInt(m[5], 10),
+                parseInt(m[6] || 0, 10)
+            );
+        }
+
+        var d = new Date(s);
+        return isNaN(d.getTime()) ? new Date() : d;
+    }
+
+    function actualizarBadgeDigemid() {
+        var $btn = $("#btnConsultarDigemid");
+        if (!$btn.length) return;
+
+        var tieneCaptura = _digemidCapturaActual && (_digemidCapturaActual.imagenBase64 || _digemidCapturaActual.nombreArchivo);
+        var requiereReg = _digemidCapturaActual && _digemidCapturaActual.requiereRegularizacion;
+
+        if (tieneCaptura && !requiereReg) {
+            var fc = parsearFechaLocal(_digemidCapturaActual.fechaCaptura);
+            var fcFmt = ("0" + fc.getHours()).slice(-2) + ":" + ("0" + fc.getMinutes()).slice(-2);
+            $btn.removeClass("btn-info btn-warning btn-danger").addClass("btn-success")
+                .html('<i class="fa fa-check-circle mr-1"></i> DIGEMID (' + fcFmt + ')')
+                .attr("title", "DIGEMID capturado correctamente (" + fc.toLocaleDateString() + " " + fcFmt + "). Clic para ver.");
+        } else if (requiereReg) {
+            $btn.removeClass("btn-info btn-success btn-danger").addClass("btn-warning")
+                .html('<i class="fa fa-exclamation-circle mr-1"></i> DIGEMID (Pendiente)')
+                .attr("title", "Constancia DIGEMID pendiente de regularización. Clic para regularizar.");
+        } else if (_estadoServicioDigemid && !_estadoServicioDigemid.disponible) {
+            $btn.removeClass("btn-info btn-success btn-danger").addClass("btn-warning")
+                .html('<i class="fa fa-exclamation-triangle mr-1"></i> DIGEMID (Offline)')
+                .attr("title", "Servicio DIGEMID fuera de servicio (" + (_estadoServicioDigemid.motivo || "") + "). Clic para reintentar.");
+        } else {
+            $btn.removeClass("btn-success btn-warning btn-danger").addClass("btn-info")
+                .html('<i class="fa fa-hospital-alt mr-1"></i> DIGEMID')
+                .attr("title", "Consultar situación en DIGEMID (MINSA)");
+        }
+    }
+
+    function mostrarVisorImagenDigemid(captura) {
+        if (!captura) return;
+
+        const esModoLectura = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
+        const nombreArchivo = captura.nombreArchivo || captura.nombreOriginal || "Constancia_DIGEMID.png";
+        let srcImg = "";
+
+        if (captura.imagenBase64 && captura.imagenBase64.length > 50) {
+            srcImg = captura.imagenBase64.startsWith("data:") ? captura.imagenBase64 : "data:image/png;base64," + captura.imagenBase64;
+        } else if (captura.nombreArchivo) {
+            srcImg = "/PuntoVenta/Ver_ImagenDigemid?nombreArchivo=" + encodeURIComponent(captura.nombreArchivo);
+        }
+
+        const tituloModal = esModoLectura 
+            ? '<i class="fa fa-file-image mr-2"></i> Constancia DIGEMID Registrada (Solo Lectura)' 
+            : '<i class="fa fa-file-image mr-2"></i> Constancia DIGEMID Registrada';
+        $("#modalConsultaDigemidTitle").html(tituloModal);
+        $("#lblVisorNombreArchivo").text(nombreArchivo);
+
+        const fc = parsearFechaLocal(captura.fechaCaptura);
+        const fcFmt = ("0" + fc.getDate()).slice(-2) + "/" + ("0" + (fc.getMonth() + 1)).slice(-2) + "/" + fc.getFullYear() + " " + ("0" + fc.getHours()).slice(-2) + ":" + ("0" + fc.getMinutes()).slice(-2) + ":" + ("0" + fc.getSeconds()).slice(-2);
+        $("#lblVisorFechaCaptura").text("Fecha Captura: " + fcFmt);
+        $("#lblVisorEstadoServicio").text(captura.estadoServicioDigemid || "EXITOSO");
+
+        // Auditoría: Creación
+        const usrCreacion = captura.usuarioCreacion || captura.USUARIO_CREACION || "";
+        if (usrCreacion) {
+            const fechaCrea = captura.fechaCreacion || captura.FECHA_CREACION;
+            const fcfCrea = fechaCrea ? parsearFechaLocal(fechaCrea) : fc;
+            const fcfCreaFmt = ("0" + fcfCrea.getDate()).slice(-2) + "/" + ("0" + (fcfCrea.getMonth() + 1)).slice(-2) + "/" + fcfCrea.getFullYear() + " " + ("0" + fcfCrea.getHours()).slice(-2) + ":" + ("0" + fcfCrea.getMinutes()).slice(-2);
+            $("#lblVisorAuditoriaCreacion").html('<i class="fa fa-user mr-1"></i> Creado por: <strong>' + PV.esc(usrCreacion) + '</strong> <span class="text-muted">(' + fcfCreaFmt + ')</span>').show();
+        } else {
+            $("#lblVisorAuditoriaCreacion").hide();
+        }
+
+        // Auditoría: Modificación
+        const usrMod = captura.usuarioModificacion || captura.USUARIO_MODIFICACION || "";
+        if (usrMod) {
+            const fechaMod = captura.fechaModificacion || captura.FECHA_MODIFICACION;
+            const fcfMod = fechaMod ? parsearFechaLocal(fechaMod) : new Date();
+            const fcfModFmt = ("0" + fcfMod.getDate()).slice(-2) + "/" + ("0" + (fcfMod.getMonth() + 1)).slice(-2) + "/" + fcfMod.getFullYear() + " " + ("0" + fcfMod.getHours()).slice(-2) + ":" + ("0" + fcfMod.getMinutes()).slice(-2);
+            $("#lblVisorAuditoriaModificacion").html('<i class="fa fa-user-edit mr-1"></i> Modificado por: <strong>' + PV.esc(usrMod) + '</strong> <span class="text-muted">(' + fcfModFmt + ')</span>').show();
+        } else {
+            $("#lblVisorAuditoriaModificacion").hide();
+        }
+
+        // Auditoría: Regularización
+        const usrReg = captura.usuarioRegularizacion || captura.USUARIO_REGULARIZACION || "";
+        if (usrReg) {
+            const fechaReg = captura.fechaRegularizacion || captura.FECHA_REGULARIZACION;
+            const fcfReg = fechaReg ? parsearFechaLocal(fechaReg) : new Date();
+            const fcfRegFmt = ("0" + fcfReg.getDate()).slice(-2) + "/" + ("0" + (fcfReg.getMonth() + 1)).slice(-2) + "/" + fcfReg.getFullYear() + " " + ("0" + fcfReg.getHours()).slice(-2) + ":" + ("0" + fcfReg.getMinutes()).slice(-2);
+            $("#lblVisorAuditoriaRegularizacion").html('<i class="fa fa-check-double mr-1"></i> Regularizado por: <strong>' + PV.esc(usrReg) + '</strong> <span class="text-muted">(' + fcfRegFmt + ')</span>').show();
+        } else {
+            $("#lblVisorAuditoriaRegularizacion").hide();
+        }
+
+        $("#imgDigemidPreview").attr("src", srcImg);
+
+        $("#seccionConsultaDigemid").hide();
+        $("#seccionVisorImagenDigemid").show();
+
+        // Ocultar botón de capturar mientras se visualiza la imagen
+        $("#btnCapturarImagenDigemid").hide();
+
+        // Si estamos editando o reabriendo, mostrar botón para actualizar/recapturar
+        if (!esModoLectura) {
+            $("#btnRecapturarDigemid").show();
+        } else {
+            $("#btnRecapturarDigemid").hide();
+        }
+
+        // Se muestra el botón de descarga
+        if (srcImg) {
+            $("#btnDescargarImagenDigemid").attr("href", srcImg).attr("download", nombreArchivo).show();
+        } else {
+            $("#btnDescargarImagenDigemid").hide();
+        }
+
+        $("#modalConsultaDigemid").modal("show");
+    }
+
     function actualizarEstadoBotonDigemid() {
         $("#btnConsultarDigemid").prop("disabled", false);
+        actualizarBadgeDigemid();
     }
 
     function consultarDigemid(ruc, razonSocial) {
@@ -763,6 +1015,11 @@ PV.Cliente = (function () {
             success: function (resp) {
                 Swal.close();
                 if (resp && (resp.success || resp.Success)) {
+                    const ahora = new Date();
+                    const ahoraLocalIso = obtenerFechaLocalIso(ahora);
+                    _estadoServicioDigemid = { disponible: true, motivo: "", fechaConsulta: ahoraLocalIso };
+                    actualizarBadgeDigemid();
+
                     const datos = resp.establecimientos || resp.Establecimientos || resp.data || resp.Data || [];
                     const rs = razonSocial || (datos.length > 0 ? (datos[0].razonSocial || datos[0].RazonSocial) : ($("#txtClienteNombre").val() || "-"));
 
@@ -770,14 +1027,13 @@ PV.Cliente = (function () {
                     $("#lblDigemidClienteRuc").text(ruc);
                     $("#lblDigemidCoincidencias").text("Coincidencias: " + datos.length + " registro(s)");
 
-                    const ahora = new Date();
                     const fechaFmt = ("0" + ahora.getDate()).slice(-2) + "/" +
                         ("0" + (ahora.getMonth() + 1)).slice(-2) + "/" +
                         ahora.getFullYear() + " " +
                         ("0" + ahora.getHours()).slice(-2) + ":" +
                         ("0" + ahora.getMinutes()).slice(-2) + ":" +
                         ("0" + ahora.getSeconds()).slice(-2);
-                    $("#lblDigemidFechaConsulta").text(fechaFmt);
+                    $("#lblDigemidFechaConsulta").text(fechaFmt).data("rawDate", ahoraLocalIso);
 
                     let tbodyHtml = "";
                     if (datos.length > 0) {
@@ -827,6 +1083,9 @@ PV.Cliente = (function () {
                     $("#modalConsultaDigemid").modal("show");
                 } else {
                     const msgError = (resp && (resp.error || resp.Error || resp.mensajeResumen || resp.MensajeResumen || resp.message || resp.Message)) || "Error al obtener datos de DIGEMID.";
+                    _estadoServicioDigemid = { disponible: false, motivo: msgError, fechaConsulta: new Date().toISOString() };
+                    actualizarBadgeDigemid();
+
                     Swal.fire({
                         type: "error",
                         title: "Consulta DIGEMID",
@@ -845,6 +1104,9 @@ PV.Cliente = (function () {
                         errDetail = jsonErr.error || jsonErr.Error || jsonErr.message || jsonErr.Message || jsonErr.mensajeResumen;
                     }
                 } catch (e) { }
+
+                _estadoServicioDigemid = { disponible: false, motivo: errDetail, fechaConsulta: new Date().toISOString() };
+                actualizarBadgeDigemid();
 
                 Swal.fire({
                     type: "error",
@@ -901,12 +1163,25 @@ PV.Cliente = (function () {
             return;
         }
 
+        var estData = {
+            item: $filaSeleccionada.find("td:eq(0)").text().trim(),
+            numeroRegistro: $filaSeleccionada.find("td:eq(1)").text().trim(),
+            categoria: $filaSeleccionada.find("td:eq(2)").text().trim(),
+            nombreComercial: $filaSeleccionada.find("td:eq(3)").text().trim(),
+            razonSocial: $filaSeleccionada.find("td:eq(4)").text().trim(),
+            ruc: $filaSeleccionada.find("td:eq(5)").text().trim(),
+            direccion: $filaSeleccionada.find("td:eq(6)").text().trim(),
+            ubigeo: $filaSeleccionada.find("td:eq(7)").text().trim(),
+            situacion: $filaSeleccionada.find("td:eq(8)").text().trim(),
+            empadronado: $filaSeleccionada.find("td:eq(9)").text().trim()
+        };
+
         const $btn = $("#btnCapturarImagenDigemid");
         const originalHtml = $btn.html();
         $btn.prop("disabled", true).html('<i class="fa fa-spinner fa-spin mr-1"></i> Generando imagen...');
 
         const areaElement = document.getElementById("areaCapturaDigemid");
-        const ruc = ($("#lblDigemidClienteRuc").text() || "DIGEMID").trim();
+        const ruc = ($("#txtClienteRuc").val() || $("#lblDigemidClienteRuc").text() || "DIGEMID").trim();
         const ahora = new Date();
         const fechaHora = ahora.getFullYear() +
             ("0" + (ahora.getMonth() + 1)).slice(-2) +
@@ -914,6 +1189,9 @@ PV.Cliente = (function () {
             ("0" + ahora.getHours()).slice(-2) +
             ("0" + ahora.getMinutes()).slice(-2) +
             ("0" + ahora.getSeconds()).slice(-2);
+
+        var docEntryActual = parseInt($("#hdfDocEntry").val()) || 0;
+        var nombreArchivo = (docEntryActual > 0 ? docEntryActual : "0") + "-" + ruc + "-" + fechaHora + ".png";
 
         html2canvas(areaElement, {
             scale: 2,
@@ -923,15 +1201,39 @@ PV.Cliente = (function () {
             $btn.prop("disabled", false).html(originalHtml);
 
             const imgData = canvas.toDataURL("image/png");
-            const link = document.createElement("a");
-            link.download = "DIGEMID_" + ruc + "_" + fechaHora + ".png";
-            link.href = imgData;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const ahoraIso = obtenerFechaLocalIso(ahora);
 
-            if (typeof toastr !== "undefined") {
-                toastr.success("Captura de DIGEMID descargada exitosamente.");
+            _digemidCapturaActual = {
+                docEntry: docEntryActual,
+                cardCode: ($("#txtClienteCodigo").val() || "").trim(),
+                cardName: ($("#txtClienteNombre").val() || "").trim(),
+                licTradNum: ruc,
+                fechaConsulta: $("#lblDigemidFechaConsulta").data("rawDate") || ahoraIso,
+                fechaCaptura: ahoraIso,
+                nombreArchivo: nombreArchivo,
+                nombreOriginal: nombreArchivo,
+                imagenBase64: imgData,
+                estadoServicioDigemid: "EXITOSO",
+                tieneDataDigemid: true,
+                establecimientoJson: JSON.stringify(estData),
+                requiereRegularizacion: false
+            };
+
+            actualizarBadgeDigemid();
+
+            // Si estamos en modo regularización en modo VER (orden ya guardada en BD)
+            if (PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly() && docEntryActual > 0) {
+                regularizarCapturaEnServidor(docEntryActual, _digemidCapturaActual);
+            } else {
+                if (typeof toastr !== "undefined") {
+                    toastr.success("Constancia DIGEMID capturada en memoria (" + nombreArchivo + ").");
+                }
+
+                if (PV.DraftManager && typeof PV.DraftManager.notificarCambio === "function") {
+                    PV.DraftManager.notificarCambio();
+                }
+
+                $("#modalConsultaDigemid").modal("hide");
             }
         }).catch(function (err) {
             $btn.prop("disabled", false).html(originalHtml);
@@ -942,6 +1244,109 @@ PV.Cliente = (function () {
                 text: "Ocurrió un error al generar la captura en imagen del resultado.",
                 confirmButtonColor: "#1ab394"
             });
+        });
+    }
+
+    function regularizarCapturaEnServidor(docEntry, captura) {
+        if (!docEntry || !captura) return;
+
+        Swal.fire({
+            title: "Regularizando DIGEMID...",
+            text: "Guardando constancia en el servidor...",
+            allowOutsideClick: false,
+            onBeforeOpen: function () { Swal.showLoading(); }
+        });
+
+        $.ajax({
+            url: "/PuntoVenta/RegularizarDigemid",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({
+                DOCENTRY: docEntry,
+                LICTRADNUM: captura.licTradNum,
+                FECHA_CONSULTA: captura.fechaConsulta,
+                FECHA_CAPTURA: captura.fechaCaptura,
+                ESTADO_SERVICIO_DIGEMID: captura.estadoServicioDigemid || "EXITOSO",
+                TIENE_DATA_DIGEMID: true,
+                ESTABLECIMIENTO_JSON: captura.establecimientoJson,
+                IMAGEN_BASE64: captura.imagenBase64
+            }),
+            dataType: "json",
+            success: function (resp) {
+                Swal.close();
+                if (resp && (resp.success || resp.Success)) {
+                    _digemidCapturaActual.requiereRegularizacion = false;
+                    actualizarBadgeDigemid();
+                    $("#modalConsultaDigemid").modal("hide");
+                    Swal.fire({
+                        type: "success",
+                        title: "Constancia Regularizada",
+                        text: resp.message || "La constancia de DIGEMID se guardó y regularizó exitosamente en el servidor.",
+                        confirmButtonColor: "#1ab394"
+                    });
+                } else {
+                    Swal.fire({
+                        type: "error",
+                        title: "Error al regularizar",
+                        text: resp.message || "No se pudo regularizar la constancia DIGEMID.",
+                        confirmButtonColor: "#1ab394"
+                    });
+                }
+            },
+            error: function (xhr) {
+                Swal.close();
+                var msg = "No se pudo regularizar la constancia en el servidor.";
+                try {
+                    var j = JSON.parse(xhr.responseText);
+                    if (j && (j.message || j.error)) msg = j.message || j.error;
+                } catch (e) { }
+                Swal.fire({
+                    type: "error",
+                    title: "Error",
+                    text: msg,
+                    confirmButtonColor: "#1ab394"
+                });
+            }
+        });
+    }
+
+    function cargarDigemidPorDocEntry(docEntry, onComplete) {
+        if (!docEntry) {
+            if (typeof onComplete === "function") onComplete(null);
+            return;
+        }
+
+        $.ajax({
+            url: "/PuntoVenta/ObtenerDigemidPorDocEntry",
+            type: "GET",
+            data: { docEntry: docEntry },
+            dataType: "json",
+            success: function (data) {
+                if (data && (data.ID_DIGEMID_PV > 0 || data.id_DIGEMID_PV > 0 || data.DOCENTRY > 0 || data.docentry > 0)) {
+                    _digemidCapturaActual = {
+                        idDigemidPv: data.ID_DIGEMID_PV || data.id_DIGEMID_PV,
+                        docEntry: data.DOCENTRY || data.docentry,
+                        docEntrySap: data.DOCENTRY_SAP || data.docentry_SAP,
+                        cardCode: data.CARDCODE || data.cardcode,
+                        cardName: data.CARDNAME || data.cardname,
+                        licTradNum: data.LICTRADNUM || data.lictradnum,
+                        fechaConsulta: data.FECHA_CONSULTA || data.fecha_CONSULTA,
+                        fechaCaptura: data.FECHA_CAPTURA || data.fecha_CAPTURA,
+                        nombreArchivo: data.NOMBRE_ARCHIVO || data.nombre_ARCHIVO,
+                        estadoServicioDigemid: data.ESTADO_SERVICIO_DIGEMID || data.estado_SERVICIO_DIGEMID,
+                        tieneDataDigemid: data.TIENE_DATA_DIGEMID !== undefined ? data.TIENE_DATA_DIGEMID : data.tiene_DATA_DIGEMID,
+                        establecimientoJson: data.ESTABLECIMIENTO_JSON || data.establecimiento_JSON,
+                        requiereRegularizacion: data.REQUIERE_REGULARIZACION !== undefined ? data.REQUIERE_REGULARIZACION : data.requiere_REGULARIZACION
+                    };
+                } else {
+                    _digemidCapturaActual = null;
+                }
+                actualizarBadgeDigemid();
+                if (typeof onComplete === "function") onComplete(_digemidCapturaActual);
+            },
+            error: function () {
+                if (typeof onComplete === "function") onComplete(null);
+            }
         });
     }
 
@@ -1030,8 +1435,15 @@ PV.Cliente = (function () {
         inicializarAutocompleteCliente: inicializarAutocompleteCliente,
         limpiarSeleccionCliente: limpiarSeleccionCliente,
         actualizarEstadoBotonDigemid: actualizarEstadoBotonDigemid,
+        actualizarBadgeDigemid: actualizarBadgeDigemid,
+        limpiarCapturaDigemid: limpiarCapturaDigemid,
+        obtenerCapturaActual: obtenerCapturaActual,
+        fijarCapturaActual: fijarCapturaActual,
+        obtenerEstadoServicio: obtenerEstadoServicio,
+        fijarEstadoServicio: fijarEstadoServicio,
         consultarDigemid: consultarDigemid,
         capturarImagenDigemid: capturarImagenDigemid,
+        cargarDigemidPorDocEntry: cargarDigemidPorDocEntry,
         bloquearBusquedaCliente: bloquearBusquedaCliente,
         cancelarPeticionesPendientes: cancelarPeticionesPendientes,
         cargarNotasCreditoCliente: cargarNotasCreditoCliente,
@@ -1043,7 +1455,8 @@ PV.Cliente = (function () {
         aplicarEstadoCreditoDesdeSqlServer: aplicarEstadoCreditoDesdeSqlServer,
         validarClienteBloqueado: validarClienteBloqueado,
         mostrarInfoControladosDireccion: mostrarInfoControladosDireccion,
-        seleccionarFilaDigemid: seleccionarFilaDigemid
+        seleccionarFilaDigemid: seleccionarFilaDigemid,
+        mostrarVisorImagenDigemid: mostrarVisorImagenDigemid
     };
 
 })();

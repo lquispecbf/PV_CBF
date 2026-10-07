@@ -875,6 +875,43 @@ namespace UI.Controllers
             return await ProxyGetAsync($"api/PuntoVenta/ConsultarDigemid?ruc={Uri.EscapeDataString(ruc ?? "")}");
         }
 
+        [RequierePermisoModulo("PuntoVenta:Venta")]
+        [HttpGet]
+        public async Task<IActionResult> ObtenerDigemidPorDocEntry([FromQuery] int docEntry)
+        {
+            return await ProxyGetAsync($"api/PuntoVenta/ObtenerDigemidPorDocEntry?docEntry={docEntry}");
+        }
+
+        [RequierePermisoModulo("PuntoVenta:Venta")]
+        [HttpPost]
+        public async Task<IActionResult> RegularizarDigemid([FromBody] VentaDigemidRegularizarRequestDTO request)
+        {
+            return await ProxyPostAsync("api/PuntoVenta/RegularizarDigemid", request);
+        }
+
+        [RequierePermisoModulo("PuntoVenta:Venta")]
+        [HttpGet]
+        public async Task<IActionResult> Ver_ImagenDigemid([FromQuery] string nombreArchivo)
+        {
+            try
+            {
+                var response = await _apiClient.GetAsync($"api/PuntoVenta/Ver_ImagenDigemid?nombreArchivo={Uri.EscapeDataString(nombreArchivo ?? "")}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    return NotFound();
+                }
+
+                var stream = await response.Content.ReadAsStreamAsync();
+                var contentType = response.Content.Headers.ContentType?.ToString() ?? "image/png";
+                return File(stream, contentType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al transmitir imagen DIGEMID {Archivo}", nombreArchivo);
+                return NotFound();
+            }
+        }
+
         #endregion
     }
 }
