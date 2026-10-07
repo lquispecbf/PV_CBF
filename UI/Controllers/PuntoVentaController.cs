@@ -866,6 +866,15 @@ namespace UI.Controllers
             return await ProxyFileGetAsync($"api/PuntoVenta/ExportarListaPreciosCliente{query}", $"LISTA DE PRECIOS CBF {DateTime.Now:dd-MM-yyyy}.xlsx");
         }
 
+        // ========== CONSULTA OFICIAL DIGEMID ==========
+
+        [RequierePermisoModulo("PuntoVenta:Venta")]
+        [HttpGet]
+        public async Task<IActionResult> ConsultarDigemid([FromQuery] string ruc)
+        {
+            return await ProxyGetAsync($"api/PuntoVenta/ConsultarDigemid?ruc={Uri.EscapeDataString(ruc ?? "")}");
+        }
+
         #endregion
     }
 }
