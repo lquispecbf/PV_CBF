@@ -177,6 +177,11 @@ $(document).ready(function () {
         e.preventDefault();
     });
 
+    $("#btnBusquedaListaPrecios").on("click", function (e) {
+        e.preventDefault();
+        descargarListaPreciosCliente();
+    });
+
     $("#btnBusquedaEnviarWms").on("click", function (e) {
         e.preventDefault();
         enviarWmsDesdeBusqueda();
@@ -210,6 +215,7 @@ function tienePermisoPv(clave, defaultVal) {
         "mantenerSesion": "VENTA.MANTENER_SESION",
         "puedeImprimir": "VENTA.IMPRIMIR",
         "puedeExportarExcel": "VENTA.EXPORTAR_EXCEL",
+        "puedeDescargarListaPrecios": "VENTA.DESCARGAR_LISTA_PRECIOS",
         "puedeStockAlmacenVer": "STOCK_ALMACEN.VER",
         "puedeStockAlmacenExportar": "STOCK_ALMACEN.EXPORTAR",
         "puedeClienteBloqueadoVer": "CLIENTE_BLOQUEADO.VER",
@@ -621,6 +627,13 @@ function aplicarPermisosEnVenta() {
     } else {
         $("#btnBusquedaEnviarWms").show();
     }
+
+    var puedeDescargarLP = tienePermisoPv("puedeDescargarListaPrecios", true);
+    if (!puedeDescargarLP) {
+        $("#btnBusquedaListaPrecios").hide();
+    } else {
+        $("#btnBusquedaListaPrecios").show();
+    }
 }
 
 function rangoFechasInvalido() {
@@ -680,6 +693,22 @@ function buscarVentas(onComplete) {
             actualizarBarraAccionesBusqueda();
             $("#btnBusquedaExportar").prop("disabled", true);
             if (esErrorSesion(xhr)) return;
+
+            if (xhr.status === 403) {
+                var msgForbidden = "No cuenta con permisos para consultar o buscar ventas.";
+                if (xhr.responseJSON && xhr.responseJSON.mensaje) {
+                    msgForbidden = xhr.responseJSON.mensaje;
+                } else if (xhr.responseJSON && xhr.responseJSON.error && xhr.responseJSON.error !== "FORBIDDEN") {
+                    msgForbidden = xhr.responseJSON.error;
+                }
+                Swal.fire({
+                    type: "warning",
+                    title: "Acceso Denegado",
+                    text: msgForbidden
+                });
+                return;
+            }
+
             var msg = "Error al buscar ventas.";
             if (xhr.responseJSON && xhr.responseJSON.error) {
                 msg = xhr.responseJSON.error;
@@ -878,6 +907,107 @@ function imprimirPreliminarSapDesdeBusqueda() {
         docEntryOwtr: docEntryOwtr,
         whs: whs,
         nroSap: nroSap
+    });
+}
+
+function descargarListaPreciosCliente() {
+    if (PV.Utils && PV.Utils._procesando) return;
+
+    if (!tienePermisoPv("puedeDescargarListaPrecios", true)) {
+        if (typeof Swal !== "undefined") {
+            Swal.fire({
+                type: "warning",
+                title: "Acceso Denegado",
+                text: "No cuenta con permisos para descargar la lista de precios."
+            });
+        } else {
+            alert("No cuenta con permisos para descargar la lista de precios.");
+        }
+        return;
+    }
+
+    var $btn = $("#btnBusquedaListaPrecios");
+    var htmlOriginal = $btn.html();
+
+    // Activar únicamente el loading nativo de la intranet
+    $btn.prop("disabled", true).html('<i class="fa fa-spinner fa-spin"></i> Generando...');
+    $("body").addClass("loading");
+
+    var url = "/PuntoVenta/ExportarListaPreciosCliente";
+
+    fetch(url, {
+        method: "GET",
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+    .then(async function (response) {
+        if (!response.ok) {
+            var errorText = await response.text();
+            var mensaje = "Error al generar la lista de precios.";
+            if (response.status === 403) {
+                mensaje = "No cuenta con permisos para descargar la lista de precios.";
+            }
+            try {
+                var json = JSON.parse(errorText);
+                if (typeof json.error === "string" && json.error.trim() !== "") {
+                    mensaje = json.error;
+                } else if (typeof json.mensaje === "string" && json.mensaje.trim() !== "") {
+                    mensaje = json.mensaje;
+                } else if (typeof json.message === "string" && json.message.trim() !== "") {
+                    mensaje = json.message;
+                }
+            } catch (ex) {
+                if (errorText && typeof errorText === "string" && errorText.trim() !== "") {
+                    mensaje = errorText;
+                }
+            }
+            var errObj = new Error(mensaje);
+            errObj.status = response.status;
+            throw errObj;
+        }
+
+        var disposition = response.headers.get("Content-Disposition");
+        var fileName = "LISTA DE PRECIOS CBF " + new Date().toLocaleDateString("es-PE").replace(/\//g, "-") + ".xlsx";
+        if (disposition && disposition.indexOf("filename=") !== -1) {
+            var filenameRegex = /filename\*?=['"]?(?:UTF-8'')?([^;'"]+)['"]?/i;
+            var matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                fileName = decodeURIComponent(matches[1]);
+            }
+        }
+
+        return response.blob().then(function (blob) {
+            return { blob: blob, fileName: fileName };
+        });
+    })
+    .then(function (result) {
+        var blobUrl = window.URL.createObjectURL(result.blob);
+        var a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = result.fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(blobUrl);
+    })
+    .catch(function (error) {
+        console.error("Error al exportar lista de precios:", error);
+        var msg = (typeof error === "string") ? error : (error && error.message ? error.message : "Ocurrió un problema al generar la lista de precios.");
+        var esDenegado = (error && error.status === 403) || (msg && msg.toLowerCase().includes("permiso"));
+
+        if (typeof Swal !== "undefined") {
+            Swal.fire({
+                type: esDenegado ? "warning" : "error",
+                title: esDenegado ? "Acceso Denegado" : "Error",
+                text: msg
+            });
+        } else {
+            alert(msg);
+        }
+    })
+    .finally(function () {
+        // Desactivar el loading nativo al finalizar
+        $("body").removeClass("loading");
+        $btn.prop("disabled", false).html(htmlOriginal);
     });
 }
 
@@ -1916,6 +2046,16 @@ function cargarVentaEditable(resp, docStatus, estadoEnvio) {
 
     PV.Detalle.setFormReadOnly(false);
 
+    if (PV.Cliente) {
+        if (resp && resp.DIGEMID) {
+            PV.Cliente.fijarCapturaActual(resp.DIGEMID);
+        } else if (resp && resp.DOCENTRY && resp.DOCENTRY > 0) {
+            PV.Cliente.cargarDigemidPorDocEntry(resp.DOCENTRY);
+        } else {
+            PV.Cliente.limpiarCapturaDigemid();
+        }
+    }
+
     cargarDetalleEditableOptimizado(resp);
 }
 
@@ -2188,6 +2328,16 @@ function recargarDetalleDesdeSAP(resp, docStatus, estadoEnvio) {
     $("#txtVentaNeto").val(resp.IMP_NET ? resp.IMP_NET.toFixed(2) : "0.00");
 
     PV.Detalle.setFormReadOnly(false);
+
+    if (PV.Cliente) {
+        if (resp && resp.DIGEMID) {
+            PV.Cliente.fijarCapturaActual(resp.DIGEMID);
+        } else if (resp && resp.DOCENTRY && resp.DOCENTRY > 0) {
+            PV.Cliente.cargarDigemidPorDocEntry(resp.DOCENTRY);
+        } else {
+            PV.Cliente.limpiarCapturaDigemid();
+        }
+    }
 
     var itemsLocal = resp.DETALLE || [];
     var listaPrecio = resp.PRICE_LIST || "";
@@ -2515,6 +2665,14 @@ function cargarVentaReadOnly(resp) {
 
     // Bloquear formulario en modo lectura
     PV.Detalle.setFormReadOnly(true);
+
+    if (PV.Cliente) {
+        if (resp && resp.DOCENTRY && resp.DOCENTRY > 0) {
+            PV.Cliente.cargarDigemidPorDocEntry(resp.DOCENTRY);
+        } else {
+            PV.Cliente.limpiarCapturaDigemid();
+        }
+    }
 
     // Poblar detalle en lote ultrarrápido
     if (resp.DETALLE && resp.DETALLE.length > 0) {

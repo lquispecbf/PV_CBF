@@ -1251,9 +1251,15 @@ $(document).ready(function () {
         $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
             var target = $(e.target).attr("href");
             if (target === "#tab-roles" && _tablaRoles) {
-                _tablaRoles.columns.adjust().responsive.recalc();
+                _tablaRoles.columns.adjust();
+                if (_tablaRoles.responsive && typeof _tablaRoles.responsive.recalc === 'function') {
+                    _tablaRoles.responsive.recalc();
+                }
             } else if (target === "#tab-usuarios" && _tabla) {
-                _tabla.columns.adjust().responsive.recalc();
+                _tabla.columns.adjust();
+                if (_tabla.responsive && typeof _tabla.responsive.recalc === 'function') {
+                    _tabla.responsive.recalc();
+                }
             }
         });
 

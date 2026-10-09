@@ -370,7 +370,8 @@ PV.DraftManager = (function () {
                 SEND_NAME: ($("#txtLogisticaContactoNombre").val() || "").trim(),
                 SEND_PHONE: ($("#txtLogisticaTelefono").val() || "").trim(),
                 SEND_PLACE: ($("#txtLogisticaLugarEnvio").val() || "").trim(),
-                DETALLE: items
+                DETALLE: items,
+                DIGEMID: (PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function") ? PV.Cliente.obtenerCapturaActual() : null
             }
         };
     }

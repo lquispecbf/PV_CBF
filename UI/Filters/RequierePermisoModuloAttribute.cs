@@ -60,6 +60,8 @@ namespace UI.Filters
             }
 
             bool tieneAlgunPermiso = false;
+            bool sesionExpirada = false;
+            bool respuestaExplicitaRecibida = false;
 
             foreach (var permiso in _permisos)
             {
@@ -76,11 +78,19 @@ namespace UI.Filters
                 try
                 {
                     var response = await apiClient.GetAsync($"api/Auth/validar-permiso?controller={controllerModulo}&action={actionModulo}");
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        sesionExpirada = true;
+                        respuestaExplicitaRecibida = true;
+                        break;
+                    }
+
                     if (response.IsSuccessStatusCode)
                     {
                         var content = await response.Content.ReadAsStringAsync();
                         var json = JObject.Parse(content);
                         bool tienePermiso = json["tienePermiso"]?.Value<bool>() ?? false;
+                        respuestaExplicitaRecibida = true;
 
                         if (tienePermiso)
                         {
@@ -91,11 +101,30 @@ namespace UI.Filters
                 }
                 catch
                 {
-                    // Ante error de red/servidor no asumimos permiso concedido
+                    // Ante error de red/timeout transitorio en la sub-consulta no bloqueamos falsamente aquí;
+                    // la API central aplicará la validación autoritativa en tiempo real con su token JWT.
                 }
             }
 
-            if (!tieneAlgunPermiso)
+            if (sesionExpirada)
+            {
+                if (EsPeticionAjax(context))
+                {
+                    context.HttpContext.Response.Headers["X-Session-Expired"] = "true";
+                    context.Result = new JsonResult(new { success = false, error = "SESSION_EXPIRED", mensaje = "Su sesión ha caducado. Por favor, vuelva a iniciar sesión." })
+                    {
+                        StatusCode = StatusCodes.Status401Unauthorized
+                    };
+                }
+                else
+                {
+                    context.Result = new RedirectToActionResult("Login", "Seguridad", null);
+                }
+                return;
+            }
+
+            // Solo bloquear si la API respondió explícitamente que el usuario no tiene permiso
+            if (respuestaExplicitaRecibida && !tieneAlgunPermiso)
             {
                 if (EsPeticionAjax(context))
                 {
