@@ -215,6 +215,7 @@ function tienePermisoPv(clave, defaultVal) {
         "mantenerSesion": "VENTA.MANTENER_SESION",
         "puedeImprimir": "VENTA.IMPRIMIR",
         "puedeExportarExcel": "VENTA.EXPORTAR_EXCEL",
+        "puedeDescargarListaPrecios": "VENTA.DESCARGAR_LISTA_PRECIOS",
         "puedeStockAlmacenVer": "STOCK_ALMACEN.VER",
         "puedeStockAlmacenExportar": "STOCK_ALMACEN.EXPORTAR",
         "puedeClienteBloqueadoVer": "CLIENTE_BLOQUEADO.VER",
@@ -626,6 +627,13 @@ function aplicarPermisosEnVenta() {
     } else {
         $("#btnBusquedaEnviarWms").show();
     }
+
+    var puedeDescargarLP = tienePermisoPv("puedeDescargarListaPrecios", true);
+    if (!puedeDescargarLP) {
+        $("#btnBusquedaListaPrecios").hide();
+    } else {
+        $("#btnBusquedaListaPrecios").show();
+    }
 }
 
 function rangoFechasInvalido() {
@@ -905,6 +913,19 @@ function imprimirPreliminarSapDesdeBusqueda() {
 function descargarListaPreciosCliente() {
     if (PV.Utils && PV.Utils._procesando) return;
 
+    if (!tienePermisoPv("puedeDescargarListaPrecios", true)) {
+        if (typeof Swal !== "undefined") {
+            Swal.fire({
+                type: "warning",
+                title: "Acceso Denegado",
+                text: "No cuenta con permisos para descargar la lista de precios."
+            });
+        } else {
+            alert("No cuenta con permisos para descargar la lista de precios.");
+        }
+        return;
+    }
+
     var $btn = $("#btnBusquedaListaPrecios");
     var htmlOriginal = $btn.html();
 
@@ -921,12 +942,27 @@ function descargarListaPreciosCliente() {
     .then(async function (response) {
         if (!response.ok) {
             var errorText = await response.text();
+            var mensaje = "Error al generar la lista de precios.";
+            if (response.status === 403) {
+                mensaje = "No cuenta con permisos para descargar la lista de precios.";
+            }
             try {
                 var json = JSON.parse(errorText);
-                throw new Error(json.error || json.mensaje || "Error al generar el archivo.");
+                if (typeof json.error === "string" && json.error.trim() !== "") {
+                    mensaje = json.error;
+                } else if (typeof json.mensaje === "string" && json.mensaje.trim() !== "") {
+                    mensaje = json.mensaje;
+                } else if (typeof json.message === "string" && json.message.trim() !== "") {
+                    mensaje = json.message;
+                }
             } catch (ex) {
-                throw new Error(errorText || "Error al comunicarse con el servidor.");
+                if (errorText && typeof errorText === "string" && errorText.trim() !== "") {
+                    mensaje = errorText;
+                }
             }
+            var errObj = new Error(mensaje);
+            errObj.status = response.status;
+            throw errObj;
         }
 
         var disposition = response.headers.get("Content-Disposition");
@@ -955,7 +991,18 @@ function descargarListaPreciosCliente() {
     })
     .catch(function (error) {
         console.error("Error al exportar lista de precios:", error);
-        alert(error.message || "Ocurrió un problema al generar la lista de precios.");
+        var msg = (typeof error === "string") ? error : (error && error.message ? error.message : "Ocurrió un problema al generar la lista de precios.");
+        var esDenegado = (error && error.status === 403) || (msg && msg.toLowerCase().includes("permiso"));
+
+        if (typeof Swal !== "undefined") {
+            Swal.fire({
+                type: esDenegado ? "warning" : "error",
+                title: esDenegado ? "Acceso Denegado" : "Error",
+                text: msg
+            });
+        } else {
+            alert(msg);
+        }
     })
     .finally(function () {
         // Desactivar el loading nativo al finalizar
