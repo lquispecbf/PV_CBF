@@ -171,25 +171,15 @@ PV.Cliente = (function () {
             }
 
             if (esModoLectura) {
-                // Si la orden fue guardada en contingencia y está pendiente de regularizar
-                if (_digemidCapturaActual && _digemidCapturaActual.requiereRegularizacion) {
-                    $("#modalConsultaDigemidTitle").html('<i class="fa fa-exclamation-circle text-warning mr-2"></i> Regularizar Constancia DIGEMID (MINSA)');
-                    $("#seccionConsultaDigemid").show();
-                    $("#seccionVisorImagenDigemid").hide();
-                    $("#btnCapturarImagenDigemid").show().html('<i class="fa fa-camera mr-1"></i> Regularizar y Guardar DIGEMID');
-                    $("#btnRecapturarDigemid").hide();
-                    $("#btnDescargarImagenDigemid").hide();
-                    consultarDigemid(ruc, razonSocial);
-                    return;
-                }
-
-                // Si no cuenta con constancia registrada
-                Swal.fire({
-                    type: "info",
-                    title: "Constancia DIGEMID",
-                    text: "Esta orden de venta no cuenta con constancia DIGEMID registrada.",
-                    confirmButtonColor: "#1ab394"
-                });
+                // Modo lectura para orden sin constancia previa (histórica) o pendiente de regularizar:
+                // Permitir al usuario consultar el RUC en DIGEMID y regularizar la constancia en el servidor
+                $("#modalConsultaDigemidTitle").html('<i class="fa fa-exclamation-circle text-warning mr-2"></i> Regularizar Constancia DIGEMID (MINSA)');
+                $("#seccionConsultaDigemid").show();
+                $("#seccionVisorImagenDigemid").hide();
+                $("#btnCapturarImagenDigemid").show().html('<i class="fa fa-camera mr-1"></i> Regularizar y Guardar DIGEMID');
+                $("#btnRecapturarDigemid").hide();
+                $("#btnDescargarImagenDigemid").hide();
+                consultarDigemid(ruc, razonSocial);
                 return;
             }
 
@@ -1257,13 +1247,21 @@ PV.Cliente = (function () {
             onBeforeOpen: function () { Swal.showLoading(); }
         });
 
+        var docEntrySap = parseInt($("#hdfDocEntrySap").val()) || null;
+        var cardCode = ($("#txtClienteCodigo").val() || captura.cardCode || "").trim();
+        var cardName = ($("#txtClienteNombre").val() || captura.cardName || "").trim();
+        var licTradNum = captura.licTradNum || ($("#txtClienteRuc").val() || "").trim();
+
         $.ajax({
             url: "/PuntoVenta/RegularizarDigemid",
             type: "POST",
             contentType: "application/json",
             data: JSON.stringify({
                 DOCENTRY: docEntry,
-                LICTRADNUM: captura.licTradNum,
+                DOCENTRY_SAP: docEntrySap,
+                CARDCODE: cardCode,
+                CARDNAME: cardName,
+                LICTRADNUM: licTradNum,
                 FECHA_CONSULTA: captura.fechaConsulta,
                 FECHA_CAPTURA: captura.fechaCaptura,
                 ESTADO_SERVICIO_DIGEMID: captura.estadoServicioDigemid || "EXITOSO",
