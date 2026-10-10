@@ -6,6 +6,7 @@ PV.Cliente = (function () {
     var _reqIdNotasCredito = 0;
     var _reqIdCredito = 0;
     var _reqIdEstadoCredito = 0;
+    var _clienteGroupCode = null;
     var _peticionesActivas = {
         direcciones: null,
         notasCredito: null,
@@ -89,6 +90,12 @@ PV.Cliente = (function () {
                 let tipo = $(this).data("tipo");
 
                 PV.registrarCambios();
+                var rawGc = (c.GROUP_CODE !== undefined && c.GROUP_CODE !== null) ? c.GROUP_CODE :
+                            (c.group_Code !== undefined && c.group_Code !== null) ? c.group_Code :
+                            (c.GroupCode !== undefined && c.GroupCode !== null) ? c.GroupCode :
+                            (c.groupCode !== undefined && c.groupCode !== null) ? c.groupCode : null;
+                _clienteGroupCode = (rawGc !== null && rawGc !== undefined && rawGc !== "") ? parseInt(rawGc) : null;
+                $("#hdfClienteGroupCode").val(_clienteGroupCode !== null && !isNaN(_clienteGroupCode) ? _clienteGroupCode : "");
                 $("#txtClienteNombre").val(c.CLIENTE);
                 $("#txtClienteRuc").val(c.RUC);
                 $("#txtClienteCodigo").val(c.CODIGO_CLIENTE);
@@ -767,6 +774,8 @@ PV.Cliente = (function () {
         $("#txtClienteNombre").val("");
         $("#txtClienteRuc").val("");
         $("#txtClienteCodigo").val("");
+        $("#hdfClienteGroupCode").val("");
+        _clienteGroupCode = null;
         $("#txtVentaLimiteCredito").val("").removeClass("credito-excedido").removeAttr("title");
         $("#btnDesgloseCredito").prop("disabled", true);
         $("#ddlFinancieroFormaPago").html("");
@@ -803,6 +812,69 @@ PV.Cliente = (function () {
     function fijarCapturaActual(captura) {
         _digemidCapturaActual = captura || null;
         actualizarBadgeDigemid();
+    }
+
+    function obtenerGroupCode() {
+        if (_clienteGroupCode !== null && _clienteGroupCode !== undefined) {
+            return _clienteGroupCode;
+        }
+        var hdfVal = parseInt($("#hdfClienteGroupCode").val());
+        return !isNaN(hdfVal) ? hdfVal : null;
+    }
+
+    function fijarGroupCode(gc) {
+        _clienteGroupCode = gc !== null && gc !== undefined && gc !== "" ? parseInt(gc) : null;
+        $("#hdfClienteGroupCode").val(_clienteGroupCode !== null ? _clienteGroupCode : "");
+        actualizarEstadoBotonDigemid();
+    }
+
+    function esGrupoExcluidoDigemid() {
+        var gc = obtenerGroupCode();
+        return gc === 121;
+    }
+
+    function verificarGroupCodeClienteAsync(codigoCliente) {
+        return new Promise(function (resolve) {
+            var gcActual = obtenerGroupCode();
+            if (gcActual !== null && !isNaN(gcActual)) {
+                resolve(gcActual);
+                return;
+            }
+            var cod = (codigoCliente || $("#txtClienteCodigo").val() || $("#txtClienteRuc").val() || "").trim();
+            if (!cod) {
+                resolve(null);
+                return;
+            }
+            $.ajax({
+                url: "/PuntoVenta/Buscar_Cliente",
+                type: "GET",
+                data: { criterioBusqueda: cod },
+                dataType: "json",
+                success: function (data) {
+                    if (data && data.length > 0) {
+                        var match = data.find(function (x) {
+                            return (x.CODIGO_CLIENTE || "").toUpperCase() === cod.toUpperCase() ||
+                                   (x.RUC || "") === cod;
+                        }) || data[0];
+                        if (match) {
+                            var rawGc = (match.GROUP_CODE !== undefined && match.GROUP_CODE !== null) ? match.GROUP_CODE :
+                                        (match.group_Code !== undefined && match.group_Code !== null) ? match.group_Code :
+                                        (match.GroupCode !== undefined && match.GroupCode !== null) ? match.GroupCode :
+                                        (match.groupCode !== undefined && match.groupCode !== null) ? match.groupCode : null;
+                            if (rawGc !== null && rawGc !== undefined && rawGc !== "") {
+                                fijarGroupCode(rawGc);
+                                resolve(parseInt(rawGc));
+                                return;
+                            }
+                        }
+                    }
+                    resolve(null);
+                },
+                error: function () {
+                    resolve(null);
+                }
+            });
+        });
     }
 
     function obtenerEstadoServicio() {
@@ -853,23 +925,28 @@ PV.Cliente = (function () {
 
         var tieneCaptura = _digemidCapturaActual && (_digemidCapturaActual.imagenBase64 || _digemidCapturaActual.nombreArchivo);
         var requiereReg = _digemidCapturaActual && _digemidCapturaActual.requiereRegularizacion;
+        var esExcluido = esGrupoExcluidoDigemid();
 
         if (tieneCaptura && !requiereReg) {
             var fc = parsearFechaLocal(_digemidCapturaActual.fechaCaptura);
             var fcFmt = ("0" + fc.getHours()).slice(-2) + ":" + ("0" + fc.getMinutes()).slice(-2);
-            $btn.removeClass("btn-info btn-warning btn-danger").addClass("btn-success")
+            $btn.removeClass("btn-info btn-warning btn-danger btn-secondary").addClass("btn-success")
                 .html('<i class="fa fa-check-circle mr-1"></i> DIGEMID (' + fcFmt + ')')
                 .attr("title", "DIGEMID capturado correctamente (" + fc.toLocaleDateString() + " " + fcFmt + "). Clic para ver.");
         } else if (requiereReg) {
-            $btn.removeClass("btn-info btn-success btn-danger").addClass("btn-warning")
+            $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
                 .html('<i class="fa fa-exclamation-circle mr-1"></i> DIGEMID (Pendiente)')
                 .attr("title", "Constancia DIGEMID pendiente de regularización. Clic para regularizar.");
         } else if (_estadoServicioDigemid && !_estadoServicioDigemid.disponible) {
-            $btn.removeClass("btn-info btn-success btn-danger").addClass("btn-warning")
+            $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
                 .html('<i class="fa fa-exclamation-triangle mr-1"></i> DIGEMID (Offline)')
                 .attr("title", "Servicio DIGEMID fuera de servicio (" + (_estadoServicioDigemid.motivo || "") + "). Clic para reintentar.");
+        } else if (esExcluido) {
+            $btn.removeClass("btn-success btn-warning btn-danger btn-secondary").addClass("btn-info")
+                .html('<i class="fa fa-hospital-alt mr-1"></i> DIGEMID (Opcional)')
+                .attr("title", "Cliente del grupo OTRO (121). Consulta DIGEMID opcional.");
         } else {
-            $btn.removeClass("btn-success btn-warning btn-danger").addClass("btn-info")
+            $btn.removeClass("btn-success btn-warning btn-danger btn-secondary").addClass("btn-info")
                 .html('<i class="fa fa-hospital-alt mr-1"></i> DIGEMID')
                 .attr("title", "Consultar situación en DIGEMID (MINSA)");
         }
@@ -1454,7 +1531,11 @@ PV.Cliente = (function () {
         validarClienteBloqueado: validarClienteBloqueado,
         mostrarInfoControladosDireccion: mostrarInfoControladosDireccion,
         seleccionarFilaDigemid: seleccionarFilaDigemid,
-        mostrarVisorImagenDigemid: mostrarVisorImagenDigemid
+        mostrarVisorImagenDigemid: mostrarVisorImagenDigemid,
+        esGrupoExcluidoDigemid: esGrupoExcluidoDigemid,
+        obtenerGroupCode: obtenerGroupCode,
+        fijarGroupCode: fijarGroupCode,
+        verificarGroupCodeClienteAsync: verificarGroupCodeClienteAsync
     };
 
 })();

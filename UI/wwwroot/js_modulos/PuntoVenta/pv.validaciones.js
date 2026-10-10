@@ -746,8 +746,19 @@ PV.Validaciones = (function () {
         }
 
         // Validación DIGEMID para clientes con RUC (11 dígitos)
+        // EXCEPCIÓN: Clientes del Grupo OTRO (GroupCode = 121) NO tienen obligatoriedad de captura DIGEMID
         const docCliente = ($("#txtClienteRuc").val() || "").trim().replace(/\D/g, "");
-        if (docCliente.length === 11) {
+        let esGrupoExcluidoDigemid = (PV.Cliente && typeof PV.Cliente.esGrupoExcluidoDigemid === "function" && PV.Cliente.esGrupoExcluidoDigemid())
+            || parseInt($("#hdfClienteGroupCode").val()) === 121;
+
+        if (!esGrupoExcluidoDigemid && PV.Cliente && typeof PV.Cliente.verificarGroupCodeClienteAsync === "function") {
+            const gcVerificado = await PV.Cliente.verificarGroupCodeClienteAsync();
+            if (gcVerificado === 121) {
+                esGrupoExcluidoDigemid = true;
+            }
+        }
+
+        if (docCliente.length === 11 && !esGrupoExcluidoDigemid) {
             const captura = PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function" ? PV.Cliente.obtenerCapturaActual() : null;
             const tieneCaptura = captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0));
 
