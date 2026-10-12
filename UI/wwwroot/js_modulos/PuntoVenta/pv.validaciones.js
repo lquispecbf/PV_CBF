@@ -516,10 +516,18 @@ PV.Validaciones = (function () {
         const orinRecordParts = [];
 
         $(".chk-nota-credito:checked").each(function () {
-            const total = parseFloat($(this).data("total")) || 0;
+            const saldo = parseFloat($(this).data("saldo")) || parseFloat($(this).data("total")) || 0;
             const docnum = $(this).data("docnum") || "";
-            orinTotal += total;
-            orinRecordParts.push(`${docnum}.${total}`);
+            const docentry = $(this).data("docentry") || $(this).val() || "";
+            const numAtCard = $(this).data("numatcard") || docnum;
+
+            orinTotal += saldo;
+
+            // Formato anterior (comentado por referencia):
+            // orinRecordParts.push(`${docnum}.${saldo}`);
+
+            // Nuevo formato: 1|DOCENTRY_NC|SALDO|NUMATCARD
+            orinRecordParts.push(`1|${docentry}|${saldo.toFixed(2)}|${numAtCard}`);
         });
 
         const descuentoTotal = parseFloat($("#txtVentaDescuento").val()) || 0;
@@ -562,7 +570,7 @@ PV.Validaciones = (function () {
             LICTRADNUM: $("#txtClienteRuc").val() || "",
             COMMENTS: ($("#txtLogisticaComentarios").val() || "").trim().substring(0, 254),
             ORIN_TOTAL: orinTotal,
-            ORIN_RECORD: orinRecordParts.join(";"),
+            ORIN_RECORD: orinRecordParts.length > 0 ? (orinRecordParts.join(";") + ";") : "",
             IMP_DELIVERY: flete,
             IMP_DSCTO: descuentoLinea,
             IMP_NET: neto,

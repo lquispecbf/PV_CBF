@@ -442,9 +442,11 @@ namespace UI.Controllers
         }
 
         [RequierePermisoModulo("PuntoVenta:Venta")]
-        public async Task<IActionResult> Buscar_NotasCreditoCliente(string codigoCliente)
+        public async Task<IActionResult> Buscar_NotasCreditoCliente(string codigoCliente, int? docEntryPv = null, bool validarEnUso = true)
         {
-            return await ProxyGetAsync($"api/PuntoVenta/Buscar_NotasCreditoCliente?codigoCliente={Uri.EscapeDataString(codigoCliente ?? "")}");
+            string url = $"api/PuntoVenta/Buscar_NotasCreditoCliente?codigoCliente={Uri.EscapeDataString(codigoCliente ?? "")}&validarEnUso={validarEnUso}";
+            if (docEntryPv.HasValue && docEntryPv.Value > 0) url += $"&docEntryPv={docEntryPv.Value}";
+            return await ProxyGetAsync(url);
         }
 
         [RequierePermisoModulo("PuntoVenta:Venta")]

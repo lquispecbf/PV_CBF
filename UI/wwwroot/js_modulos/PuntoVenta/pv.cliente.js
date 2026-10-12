@@ -505,7 +505,7 @@ PV.Cliente = (function () {
                 .filter(x => x && x.trim() !== "")
                 .join("-");
         }
-    function cargarNotasCreditoCliente(codigoCliente, onComplete) {
+    function cargarNotasCreditoCliente(codigoCliente, onComplete, validarEnUso) {
             limpiarNotasCreditoCliente();
 
             if (!codigoCliente) { if (typeof onComplete === "function") onComplete(); return; }
@@ -515,10 +515,19 @@ PV.Cliente = (function () {
                 try { _peticionesActivas.notasCredito.abort(); } catch (e) { }
             }
 
+            var esModoLectura = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
+            var debeValidar = (validarEnUso !== undefined) ? !!validarEnUso : !esModoLectura;
+
+            var docEntryPv = parseInt($("#hdfDocEntry").val()) || 0;
+
             _peticionesActivas.notasCredito = $.ajax({
                 url: "/PuntoVenta/Buscar_NotasCreditoCliente",
                 type: "GET",
-                data: { codigoCliente: codigoCliente },
+                data: {
+                    codigoCliente: codigoCliente,
+                    docEntryPv: docEntryPv,
+                    validarEnUso: debeValidar
+                },
                 dataType: "json",
                 success: function (data) {
                     if (reqId !== _reqIdNotasCredito) return; // Descarta respuesta obsoleta
@@ -533,17 +542,45 @@ PV.Cliente = (function () {
                     let html = "";
 
                     data.forEach(function (item) {
+                        const numAtCard = (item.NUMATCARD || item.DOCNUM || "").toString().trim();
+                        const saldo = item.SALDO !== undefined && item.SALDO !== null ? Number(item.SALDO) : Number(item.TOTAL || 0);
+                        const totalOrig = Number(item.TOTAL || 0);
+                        const enUso = debeValidar && (item.EN_USO === true || item.en_uso === true);
+                        const ordenUso = item.DOCENTRY_ORDEN_USO || item.docentry_orden_uso || 0;
+
+                        let tooltip = `NC: ${numAtCard} | Saldo: S/ ${saldo.toFixed(2)}`;
+                        let classItem = "nota-credito-item";
+                        let disabledAttr = esModoLectura ? 'disabled="disabled"' : "";
+                        let badgeHtml = "";
+
+                        if (enUso) {
+                            tooltip += ` [EN USO en Orden N° ${ordenUso}]`;
+                            classItem += " nota-credito-bloqueada";
+                            disabledAttr = 'disabled="disabled"';
+                            badgeHtml = `<span class="nota-credito-badge-bloqueada" title="En uso en orden N° ${ordenUso}">EN USO</span>`;
+                        }
+
                         html += `
-                            <label class="nota-credito-item" for="nc_${item.DOCENTRY}">
+                            <label class="${classItem}" ${(enUso || esModoLectura) ? "" : `for="nc_${item.DOCENTRY}"`} title="${tooltip}">
                                 <input class="chk-nota-credito"
                                     type="checkbox"
                                     value="${item.DOCENTRY}"
+                                    data-docentry="${item.DOCENTRY}"
+                                    data-numatcard="${numAtCard}"
                                     data-docnum="${item.DOCNUM}"
-                                    data-total="${item.TOTAL}"
+                                    data-saldo="${saldo}"
+                                    data-total="${saldo}"
+                                    data-total-orig="${totalOrig}"
+                                    data-en-uso="${enUso ? "1" : "0"}"
+                                    data-orden-uso="${ordenUso}"
+                                    ${disabledAttr}
                                     id="nc_${item.DOCENTRY}">
                                 <span class="nota-credito-texto">
-                                    <span class="nota-credito-docnum">NC: ${item.DOCNUM}</span>
-                                    <span class="nota-credito-total">S/ ${Number(item.TOTAL).toFixed(2)}</span>
+                                    <span class="nota-credito-docnum" title="${numAtCard}">NC: ${numAtCard}</span>
+                                    <span class="nota-credito-total">
+                                        S/ ${saldo.toFixed(2)}
+                                        ${badgeHtml}
+                                    </span>
                                 </span>
                             </label>`;
                     });
@@ -1537,5 +1574,12 @@ PV.Cliente = (function () {
         fijarGroupCode: fijarGroupCode,
         verificarGroupCodeClienteAsync: verificarGroupCodeClienteAsync
     };
+
+    // Prevenir cualquier interacción/click sobre tarjetas de Notas de Crédito bloqueadas
+    $(document).on("click", ".nota-credito-bloqueada", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+    });
 
 })();

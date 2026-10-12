@@ -2314,7 +2314,7 @@ PV.Detalle = (function () {
 
         let orinTotal = 0;
         $(".chk-nota-credito:checked").each(function () {
-            orinTotal += parseFloat($(this).data("total")) || 0;
+            orinTotal += parseFloat($(this).data("saldo")) || parseFloat($(this).data("total")) || 0;
         });
 
         const descuentoTotal = descuentoSuma + orinTotal;

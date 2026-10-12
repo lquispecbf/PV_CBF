@@ -2201,16 +2201,44 @@ function marcarNotasCreditoGuardadas(resp) {
 
     var partes = resp.ORIN_RECORD.split(";");
     partes.forEach(function (parte) {
-        var datos = parte.split(".");
-        if (datos.length < 2) return;
-        var docnum = parseInt(datos[0], 10);
+        if (!parte || !parte.trim()) return;
 
-        var $chk = $(".chk-nota-credito").filter(function () {
-            return $(this).data("docnum") === docnum;
-        });
+        // Detección de formato:
+        if (parte.indexOf("|") >= 0) {
+            // NUEVO FORMATO: 1|DOCENTRY_NC|SALDO|NUMATCARD
+            var datos = parte.split("|");
+            if (datos.length >= 2) {
+                var estadoActivo = (datos[0] || "1").trim() === "1";
+                if (!estadoActivo) return; // Si la NC fue desactivada (flag 0), no se marca
 
-        if ($chk.length > 0) {
-            $chk.prop("checked", true);
+                var docentry = parseInt(datos[1], 10);
+                var numatcard = (datos[3] || "").trim();
+
+                var $chk = $(".chk-nota-credito").filter(function () {
+                    var chkDocEntry = parseInt($(this).data("docentry"), 10) || parseInt($(this).val(), 10);
+                    var chkNumAtCard = ($(this).data("numatcard") || "").toString().trim();
+                    return (docentry > 0 && chkDocEntry === docentry)
+                        || (numatcard !== "" && chkNumAtCard === numatcard);
+                });
+
+                if ($chk.length > 0) {
+                    $chk.prop("checked", true);
+                }
+            }
+        } else {
+            // FORMATO ANTERIOR (retrocompatibilidad): DOCNUM.SALDO
+            var primerPunto = parte.indexOf(".");
+            if (primerPunto > 0) {
+                var docnum = parseInt(parte.substring(0, primerPunto), 10);
+
+                var $chk = $(".chk-nota-credito").filter(function () {
+                    return parseInt($(this).data("docnum"), 10) === docnum;
+                });
+
+                if ($chk.length > 0) {
+                    $chk.prop("checked", true);
+                }
+            }
         }
     });
 
@@ -2583,10 +2611,10 @@ function cargarVentaReadOnly(resp) {
         resp.INVOICE_ADDRESS
     );
 
-    // Cargar notas de crédito
+    // Cargar notas de crédito sin validar si fueron usadas en otras órdenes (modo sólo lectura)
     PV.Cliente.cargarNotasCreditoCliente(resp.CARDCODE, function () {
         marcarNotasCreditoGuardadas(resp);
-    });
+    }, false);
 
     // Vendedor
     if (resp.SLPCODE) {
