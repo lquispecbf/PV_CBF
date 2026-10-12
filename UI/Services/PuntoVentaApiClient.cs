@@ -71,7 +71,11 @@ namespace UI.Services
                     {
                         session.SetString("SESSION_JWT_TOKEN", respDto.Token);
                         session.SetString("SESSION_TOKEN_EXPIRATION", respDto.Expiration.ToString("o"));
-                        _logger.LogInformation("Token JWT renovado exitosamente para el usuario {Usuario} (ID {IdUsuario}).", usuario, idUsuario);
+                        if (respDto.CodigoVendedorSap.HasValue)
+                        {
+                            session.SetInt32("SESSION_CODIGO_VENDEDOR_SAP", respDto.CodigoVendedorSap.Value);
+                        }
+                        _logger.LogInformation("Token JWT renovado exitosamente para el usuario {Usuario} (ID {IdUsuario}, CodigoVendedorSap {CodigoVendedorSap}).", usuario, idUsuario, respDto.CodigoVendedorSap);
                         return true;
                     }
                 }

@@ -12,24 +12,14 @@ namespace UI.Controllers
     public class PuntoVentaController : Controller
     {
         private readonly IPuntoVentaApiClient _apiClient;
-        private readonly IConfiguration _configuration;
-        private readonly IWebHostEnvironment _env;
         private readonly ILogger<PuntoVentaController> _logger;
-        private readonly string? _rutaCrystal_API_PV;
-        private readonly string? _rutaCrystal_PDF;
 
         public PuntoVentaController(
             IPuntoVentaApiClient apiClient,
-            IConfiguration configuration,
-            IWebHostEnvironment env,
             ILogger<PuntoVentaController> logger)
         {
             _apiClient = apiClient;
-            _configuration = configuration;
-            _env = env;
             _logger = logger;
-            _rutaCrystal_API_PV = configuration["RutaCrystal_API_PV"];
-            _rutaCrystal_PDF = configuration["RutaCrystal_PDF"];
         }
 
         private bool EsUsuarioMantenerSesion()
