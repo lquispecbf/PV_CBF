@@ -514,12 +514,33 @@ PV.Validaciones = (function () {
 
         let orinTotal = 0;
         const orinRecordParts = [];
+        const notasCreditoParts = [];
+
+        // Validación obligatoria en cliente: Ninguna nota de crédito seleccionada puede estar en uso o bloqueada
+        const ncsEnUso = [];
+        $(".chk-nota-credito:checked").each(function () {
+            const enUso = $(this).data("en-uso") === "1" || $(this).data("en-uso") === 1 || $(this).closest(".nota-credito-item").hasClass("nota-credito-bloqueada");
+            if (enUso) {
+                const numAtCard = ($(this).data("numatcard") || $(this).data("docnum") || $(this).val() || "").toString().trim();
+                const ordenUso = $(this).data("orden-uso") || "";
+                ncsEnUso.push(ordenUso ? `${numAtCard} (en uso en Orden N° ${ordenUso})` : numAtCard);
+            }
+        });
+
+        if (ncsEnUso.length > 0) {
+            Swal.fire({
+                type: "warning",
+                title: "Nota de crédito no disponible",
+                html: `No se puede guardar la venta porque la(s) siguiente(s) nota(s) de crédito ya está(n) siendo utilizada(s) en otra orden:<br><br><strong>${ncsEnUso.join("<br>")}</strong><br><br>Por favor deselecciónela(s) para continuar.`
+            });
+            return null;
+        }
 
         $(".chk-nota-credito:checked").each(function () {
             const saldo = parseFloat($(this).data("saldo")) || parseFloat($(this).data("total")) || 0;
             const docnum = $(this).data("docnum") || "";
             const docentry = $(this).data("docentry") || $(this).val() || "";
-            const numAtCard = $(this).data("numatcard") || docnum;
+            const numAtCard = ($(this).data("numatcard") || docnum || "").toString().trim();
 
             orinTotal += saldo;
 
@@ -528,6 +549,19 @@ PV.Validaciones = (function () {
 
             // Nuevo formato: 1|DOCENTRY_NC|SALDO|NUMATCARD
             orinRecordParts.push(`1|${docentry}|${saldo.toFixed(2)}|${numAtCard}`);
+
+            // Formato columna NOTA_CREDITO: CCCC-CCCCCCCC
+            // numatcard se compone internamente de CC-CCCC-CCCCCCCC y se requiere almacenar solamente CCCC-CCCCCCCC
+            let ncNumLimpio = numAtCard;
+            let partesNc = numAtCard.split("-");
+            if (partesNc.length >= 3) {
+                ncNumLimpio = partesNc.slice(1).join("-").trim();
+            } else if (partesNc.length === 2 && partesNc[0].length <= 2) {
+                ncNumLimpio = partesNc[1].trim();
+            }
+            if (ncNumLimpio) {
+                notasCreditoParts.push(ncNumLimpio);
+            }
         });
 
         const descuentoTotal = parseFloat($("#txtVentaDescuento").val()) || 0;
@@ -571,6 +605,7 @@ PV.Validaciones = (function () {
             COMMENTS: ($("#txtLogisticaComentarios").val() || "").trim().substring(0, 254),
             ORIN_TOTAL: orinTotal,
             ORIN_RECORD: orinRecordParts.length > 0 ? (orinRecordParts.join(";") + ";") : "",
+            NOTA_CREDITO: notasCreditoParts.length > 0 ? (notasCreditoParts.join("|") + "|") : "",
             IMP_DELIVERY: flete,
             IMP_DSCTO: descuentoLinea,
             IMP_NET: neto,

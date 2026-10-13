@@ -322,6 +322,7 @@ namespace UI.Controllers
             ViewBag.MantenerSesionPuntoVenta = permisosPv.MantenerSesion;
             ViewBag.PuedeAnularEnviadoWms = permisosPv.PuedeAnularEnviadoWms;
             ViewBag.PuedeModificarCondicionPago = permisosPv.PuedeModificarCondicionPago;
+            ViewBag.PuedeActivarInactivarNc = permisosPv.PuedeActivarInactivarNc;
         }
 
         #region Vistas Razor
@@ -902,6 +903,78 @@ namespace UI.Controllers
                 _logger.LogError(ex, "Error al transmitir imagen DIGEMID {Archivo}", nombreArchivo);
                 return NotFound();
             }
+        }
+
+        // ========== ACTIVAR / INACTIVAR NOTAS DE CRÉDITO ==========
+
+        [RequierePermisoModulo("PuntoVenta:Venta")]
+        [HttpGet]
+        public async Task<IActionResult> ObtenerNotasCreditoOrden([FromQuery] int docEntry)
+        {
+            var response = await _apiClient.GetAsync($"api/PuntoVenta/ObtenerNotasCreditoOrden?docEntry={docEntry}");
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                string mensajeError = "No cuenta con autorización para gestionar notas de crédito de esta orden de venta.";
+                try
+                {
+                    var token = Newtonsoft.Json.Linq.JObject.Parse(content);
+                    var err = token["error"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                }
+                catch { }
+
+                return Ok(new
+                {
+                    success = false,
+                    esAccesoDenegado = true,
+                    statusCode = 403,
+                    error = mensajeError
+                });
+            }
+
+            return new ContentResult
+            {
+                Content = content,
+                ContentType = "application/json; charset=utf-8",
+                StatusCode = (int)response.StatusCode
+            };
+        }
+
+        [RequierePermisoModulo("PuntoVenta:Venta")]
+        [HttpPost]
+        public async Task<IActionResult> ActualizarEstadoNotasCredito([FromBody] ActualizarEstadoNcRequestDTO request)
+        {
+            var response = await _apiClient.PostAsync("api/PuntoVenta/ActualizarEstadoNotasCredito", request);
+            var content = await response.Content.ReadAsStringAsync();
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                string mensajeError = "No cuenta con autorización para actualizar notas de crédito de esta orden de venta.";
+                try
+                {
+                    var token = Newtonsoft.Json.Linq.JObject.Parse(content);
+                    var err = token["error"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                }
+                catch { }
+
+                return Ok(new
+                {
+                    success = false,
+                    esAccesoDenegado = true,
+                    statusCode = 403,
+                    error = mensajeError
+                });
+            }
+
+            return new ContentResult
+            {
+                Content = content,
+                ContentType = "application/json; charset=utf-8",
+                StatusCode = (int)response.StatusCode
+            };
         }
 
         #endregion

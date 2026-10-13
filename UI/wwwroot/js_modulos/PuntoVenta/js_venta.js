@@ -212,6 +212,7 @@ function tienePermisoPv(clave, defaultVal) {
         "puedeEnviarWms": "VENTA.ENVIAR_WMS",
         "puedeReabrir": "VENTA.REABRIR",
         "puedeModificarCondicionPago": "VENTA.MODIFICAR_COND_PAGO",
+        "puedeActivarInactivarNc": "VENTA.ACTIVAR_INACTIVAR_NC",
         "mantenerSesion": "VENTA.MANTENER_SESION",
         "puedeImprimir": "VENTA.IMPRIMIR",
         "puedeExportarExcel": "VENTA.EXPORTAR_EXCEL",
@@ -241,6 +242,7 @@ function inicializarTablaBusqueda() {
     var esSoloLectura = tienePermisoPv("esSoloLectura", false);
     var puedeReabrir = tienePermisoPv("puedeReabrir", true) && puedeCrear && !esSoloLectura;
     var puedeModificarCondPago = tienePermisoPv("puedeModificarCondicionPago", !!window.PUEDE_MODIFICAR_CONDICION_PAGO);
+    var puedeActivarInactivarNc = tienePermisoPv("puedeActivarInactivarNc", !!window.PUEDE_ACTIVAR_INACTIVAR_NC);
 
     tblBusquedaVentas = $("#tblBusquedaVentas").DataTable({
         data: [],
@@ -287,6 +289,23 @@ function inicializarTablaBusqueda() {
                         return '<button type="button" class="btn btn-sm btn-info btn-cambiar-cond-pago" tabindex="-1" title="Modificar Condición de Pago"><i class="fa fa-credit-card"></i></button>';
                     } else {
                         return '<button type="button" class="btn btn-sm btn-secondary btn-cambiar-cond-pago" disabled tabindex="-1" title="Solo disponible para estado ENVIADO WMS"><i class="fa fa-credit-card"></i></button>';
+                    }
+                }
+            },
+            {
+                data: null,
+                orderable: false,
+                searchable: false,
+                className: "text-center",
+                width: "50px",
+                visible: puedeActivarInactivarNc,
+                render: function (data, type, row) {
+                    var orinRecord = (row.ORIN_RECORD || row.orinRecord || "").trim();
+                    var tieneNc = orinRecord.length > 0;
+                    if (tieneNc) {
+                        return '<button type="button" class="btn btn-sm btn-info btn-gestionar-nc" tabindex="-1" title="Activar / Inactivar Notas de Crédito"><i class="fa fa-tags"></i></button>';
+                    } else {
+                        return '<button type="button" class="btn btn-sm btn-secondary btn-gestionar-nc" disabled tabindex="-1" title="Sin Notas de Crédito consideradas"><i class="fa fa-tags"></i></button>';
                     }
                 }
             },
@@ -342,13 +361,13 @@ function inicializarTablaBusqueda() {
             },
             { data: "NROSAP" },
             { data: "ESTADO_ENVIO" },
-            { data: "USUARIO_MODIFICA" },
-            { data: "FECHA_HORA" },
-            { data: "PC" },
-            { data: "DOCENTRY" },
-            { data: "DOCSTATUS" },
-            { data: "DOCENTRY_SAP" },
-            { data: "DOCENTRY_OWTR" },
+            { data: "USUARIO_MODIFICA", visible: false },
+            { data: "FECHA_HORA", visible: false },
+            { data: "PC", visible: false },
+            { data: "DOCENTRY", visible: false },
+            { data: "DOCSTATUS", visible: false },
+            { data: "DOCENTRY_SAP", visible: false },
+            { data: "DOCENTRY_OWTR", visible: false },
             {
                 data: null,
                 title: "LOG",
@@ -361,14 +380,10 @@ function inicializarTablaBusqueda() {
         ],
         columnDefs: [
             {
-                targets: [0, 1, 2, 3],
+                targets: [0, 1, 2, 3, 4],
                 createdCell: function (td) {
                     td.style.width = "50px";
                 }
-            },
-            {
-                targets: [14, 15, 16, 17, 18, 19, 20], // USUARIO_MODIFICA, FECHA_HORA, PC, DOCENTRY, DOCSTATUS, DOCENTRY_SAP, DOCENTRY_OWTR
-                visible: false
             }
         ],
         language: {
@@ -671,7 +686,7 @@ function buscarVentas(onComplete) {
             tblBusquedaVentas.clear();
             tblBusquedaVentas.rows.add(data || []);
             tblBusquedaVentas.draw();
-            tblBusquedaVentas.order([17, "desc"]).draw();
+            tblBusquedaVentas.order([[18, "desc"]]).draw();
             $("#tblBusquedaVentas").show();
             $("#tblBusquedaVentas_wrapper").show();
 
@@ -1891,6 +1906,490 @@ $(document).on("click", "#btnGuardarCondicionPago", function () {
     });
 });
 
+// =========================================================================
+// GESTIÓN DE NOTAS DE CRÉDITO (ACTIVAR / INACTIVAR)
+// =========================================================================
+
+var _ncItemsActuales = [];
+var _filaNcSeleccionada = null;
+
+function escapeHtmlNc(text) {
+    if (text === null || text === undefined) return "";
+    return $("<div>").text(text).html();
+}
+
+function esEstadoOrdenModificableNc(estadoEnvio, docStatus) {
+    var est = (estadoEnvio || "").toString().trim().toUpperCase();
+    var ds = (docStatus || "").toString().trim().toUpperCase();
+
+    // Si está cancelado o anulado: NO es modificable
+    if (ds === "C" || ds === "Z" || est.indexOf("CANCELAD") !== -1 || est.indexOf("ANULAD") !== -1) {
+        return false;
+    }
+
+    // Estados permitidos en Punto de Venta: CREADO, CREADO SAP (o CREADO/SAP), ENVIADO WMS (o WMS/SAP)
+    if (ds === "O" || ds === "W") {
+        return true;
+    }
+
+    if (est === "CREADO" || est === "CREADO SAP" || est === "CREADO/SAP" || est === "ENVIADO WMS" || est === "WMS/SAP") {
+        return true;
+    }
+
+    return false;
+}
+
+function limpiarModalGestionarNc() {
+    $("#hdnModalNcDocEntry").val("");
+    $("#lblModalNcDocEntry").text("0");
+    $("#lblModalNcCliente").text("-");
+    $("#lblModalNcRuc").text("-");
+    $("#lblModalNcNroSap").text("-");
+    $("#lblModalNcFecha").text("-");
+    $("#lblModalNcTotal").text("S/ 0.00");
+    $("#lblModalNcEstado").removeClass("badge-secondary badge-primary badge-danger badge-warning badge-info badge-success").addClass("badge-secondary").text("-");
+    $("#alertInfoGestionarNc")
+        .removeClass("alert-warning alert-danger")
+        .addClass("alert-info")
+        .html('<i class="fa fa-info-circle mr-1 text-info"></i> Modifique el estado (<strong>ACTIVO</strong> o <strong>INACTIVO</strong>) de cada Nota de Crédito. Al guardar los cambios se actualizará el registro interno sin recalcular montos ni alterar otros campos.');
+    $("#btnGuardarEstadoNc").show().prop("disabled", false);
+    $("#tbodyGestionarNc").empty();
+    _ncItemsActuales = [];
+    _filaNcSeleccionada = null;
+}
+
+$(document).on("click", ".btn-gestionar-nc", function () {
+    if (!PV.Utils.puedeInteractuar()) return;
+
+    if (!tienePermisoPv("puedeActivarInactivarNc", false)) {
+        if (tblBusquedaVentas) {
+            tblBusquedaVentas.column(4).visible(false);
+        }
+        Swal.fire({
+            type: "warning",
+            title: "Acceso Denegado",
+            text: "No cuenta con autorización para gestionar notas de crédito."
+        });
+        return;
+    }
+
+    var $btn = $(this);
+    var $tr = $btn.closest("tr");
+    var data = tblBusquedaVentas.row($tr).data();
+    if (!data || !data.DOCENTRY) return;
+
+    _filaNcSeleccionada = $tr;
+    var docEntry = data.DOCENTRY;
+
+    // Limpiar el modal antes de cualquier consulta para evitar mostrar datos residuales
+    limpiarModalGestionarNc();
+
+    PV.Utils.ejecutarAccion(function (reHabilitar) {
+        $.ajax({
+            url: "/PuntoVenta/ObtenerNotasCreditoOrden",
+            type: "GET",
+            data: { docEntry: docEntry },
+            beforeSend: function () {
+                $("body").addClass("loading");
+            },
+            success: function (resp) {
+                if (resp && resp.esAccesoDenegado) {
+                    limpiarModalGestionarNc();
+                    $("#modalGestionarNc").modal("hide");
+
+                    if (window.PERMISOS_PV) {
+                        window.PERMISOS_PV.puedeActivarInactivarNc = false;
+                        if (Array.isArray(window.PERMISOS_PV.acciones)) {
+                            window.PERMISOS_PV.acciones = window.PERMISOS_PV.acciones.filter(function (a) {
+                                return a !== "VENTA.ACTIVAR_INACTIVAR_NC";
+                            });
+                        }
+                    }
+                    if (tblBusquedaVentas) {
+                        tblBusquedaVentas.column(4).visible(false);
+                    }
+
+                    Swal.fire({
+                        type: "warning",
+                        title: "Acceso Denegado",
+                        text: resp.error || "No cuenta con autorización para gestionar notas de crédito."
+                    });
+                    return;
+                }
+
+                var esExito = resp && (resp.success === true || resp.Success === true);
+                if (!esExito) {
+                    var msg = resp ? (resp.error || resp.message || "No se pudo obtener las notas de crédito.") : "Error al consultar la orden.";
+                    Swal.fire({
+                        type: "warning",
+                        title: "Atención",
+                        text: msg
+                    });
+                    limpiarModalGestionarNc();
+                    return;
+                }
+
+                // Resolver estado de la orden y si permite modificación
+                var docStatusResp = (resp.docStatus || data.DOCSTATUS || "").toString().trim().toUpperCase();
+                var estadoEnvioResp = (resp.estadoEnvio || data.ESTADO_ENVIO || "").toString().trim().toUpperCase();
+                var esModificable = typeof resp.esModificable === "boolean" 
+                    ? resp.esModificable 
+                    : esEstadoOrdenModificableNc(estadoEnvioResp, docStatusResp);
+
+                // Únicamente cuando el servidor autoriza y devuelve éxito, se pobla la cabecera y abre el modal
+                $("#hdnModalNcDocEntry").val(docEntry);
+                $("#lblModalNcDocEntry").text(docEntry);
+                $("#lblModalNcCliente").text(data.CLIENTE || "-");
+                $("#lblModalNcRuc").text(data.RUC_DNI || "-");
+                $("#lblModalNcNroSap").text(data.NROSAP || "-");
+                $("#lblModalNcFecha").text(data.FECHA || "-");
+                $("#lblModalNcTotal").text("S/ " + (parseFloat(data.TOTAL) || 0).toFixed(2));
+
+                // Configurar badge de estado de la orden en el modal
+                var textoEstado = estadoEnvioResp || (docStatusResp === "C" ? "CANCELADO" : (docStatusResp === "W" ? "ENVIADO WMS" : (docStatusResp === "O" ? "CREADO" : "-")));
+                var $badgeEstado = $("#lblModalNcEstado").text(textoEstado);
+                $badgeEstado.removeClass("badge-secondary badge-primary badge-danger badge-warning badge-info badge-success");
+
+                if (docStatusResp === "C" || docStatusResp === "Z" || textoEstado.indexOf("CANCELAD") !== -1 || textoEstado.indexOf("ANULAD") !== -1) {
+                    $badgeEstado.addClass("badge-danger");
+                } else if (docStatusResp === "W" || textoEstado.indexOf("WMS") !== -1) {
+                    $badgeEstado.addClass("badge-info");
+                } else {
+                    $badgeEstado.addClass("badge-primary");
+                }
+
+                // Configurar controles según si el estado permite modificación
+                var $alertInfo = $("#alertInfoGestionarNc");
+                var $btnGuardar = $("#btnGuardarEstadoNc");
+
+                if (esModificable) {
+                    // Estados CREADO, CREADO SAP, ENVIADO WMS: Habilitado para modificar y grabar
+                    $alertInfo
+                        .removeClass("alert-warning alert-danger")
+                        .addClass("alert-info")
+                        .html('<i class="fa fa-info-circle mr-1 text-info"></i> Modifique el estado (<strong>ACTIVO</strong> o <strong>INACTIVO</strong>) de cada Nota de Crédito. Al guardar los cambios se actualizará el registro interno sin recalcular montos ni alterar otros campos.');
+                    $btnGuardar.show().prop("disabled", false);
+                } else {
+                    // Estado CANCELADO / CANCELADO SAP u otros no permitidos: Solamente ver y cerrar
+                    $alertInfo
+                        .removeClass("alert-info alert-danger")
+                        .addClass("alert-warning")
+                        .html('<i class="fa fa-lock mr-1 text-warning"></i> <strong>Modo Solo Lectura:</strong> La orden de venta se encuentra en estado <strong>' + escapeHtmlNc(textoEstado) + '</strong>. No se permite modificar ni cambiar ni grabar el estado de las notas de crédito. Solamente puede ver la información y cerrar este modal.');
+                    $btnGuardar.hide().prop("disabled", true);
+                }
+
+                renderizarModalNotasCredito(resp.orinRecord || "", esModificable);
+                $("#modalGestionarNc").modal("show");
+            },
+            error: function (xhr) {
+                limpiarModalGestionarNc();
+                $("#modalGestionarNc").modal("hide");
+
+                if (xhr.status === 403) {
+                    // Revocar permiso en memoria del navegador y ocultar columna del DataTable
+                    if (window.PERMISOS_PV) {
+                        window.PERMISOS_PV.puedeActivarInactivarNc = false;
+                        if (Array.isArray(window.PERMISOS_PV.acciones)) {
+                            window.PERMISOS_PV.acciones = window.PERMISOS_PV.acciones.filter(function (a) {
+                                return a !== "VENTA.ACTIVAR_INACTIVAR_NC";
+                            });
+                        }
+                    }
+                    if (tblBusquedaVentas) {
+                        tblBusquedaVentas.column(4).visible(false);
+                    }
+                    var msg403 = (xhr.responseJSON && xhr.responseJSON.error)
+                        ? xhr.responseJSON.error
+                        : "No cuenta con autorización para gestionar notas de crédito.";
+                    Swal.fire({
+                        type: "warning",
+                        title: "Acceso Denegado",
+                        text: msg403
+                    });
+                    return;
+                }
+
+                var msgErr = "Error al consultar las notas de crédito de la orden.";
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    msgErr = xhr.responseJSON.error;
+                }
+                Swal.fire({
+                    type: "error",
+                    title: "Error",
+                    text: msgErr
+                });
+            },
+            complete: function () {
+                $("body").removeClass("loading");
+                if (typeof reHabilitar === "function") reHabilitar();
+            }
+        });
+    });
+});
+
+function renderizarModalNotasCredito(orinRecord, esModificable) {
+    var $tbody = $("#tbodyGestionarNc");
+    $tbody.empty();
+    _ncItemsActuales = [];
+
+    var rawRecord = (orinRecord || "").trim();
+    if (!rawRecord) {
+        $tbody.append('<tr><td colspan="5" class="text-center text-muted py-3">No hay notas de crédito registradas en esta orden.</td></tr>');
+        return;
+    }
+
+    var tokens = rawRecord.split(";");
+    var idx = 0;
+
+    tokens.forEach(function (t) {
+        t = t.trim();
+        if (!t) return;
+
+        var parts = t.split("|");
+        // Formato: ESTADO|DOCENTRY_NC|SALDO|NUMATCARD
+        var estado = (parts[0] || "1").trim(); // "1" o "0"
+        var docEntrySap = (parts[1] || "").trim();
+        var monto = parseFloat(parts[2]) || 0;
+        var numAtCard = (parts[3] || "").trim();
+
+        _ncItemsActuales.push({
+            index: idx,
+            estadoOriginal: estado,
+            estadoActual: estado,
+            docEntrySap: docEntrySap,
+            monto: monto,
+            numAtCard: numAtCard,
+            partesExtras: parts.slice(4) // preservar si hubiera partes adicionales
+        });
+
+        idx++;
+    });
+
+    if (_ncItemsActuales.length === 0) {
+        $tbody.append('<tr><td colspan="5" class="text-center text-muted py-3">No hay notas de crédito registradas en esta orden.</td></tr>');
+        return;
+    }
+
+    _ncItemsActuales.forEach(function (item) {
+        var esActivo = item.estadoActual === "1";
+        var badgeHtml = esActivo 
+            ? '<span class="badge badge-primary font-bold badge-nc-estado" id="badge_nc_' + item.index + '" style="background-color:#1ab394;">ACTIVO</span>'
+            : '<span class="badge badge-secondary font-bold badge-nc-estado" id="badge_nc_' + item.index + '">INACTIVO</span>';
+
+        var celdaEstadoHtml;
+        if (esModificable) {
+            // Modo edición habilitado (CREADO, CREADO SAP, ENVIADO WMS): dropdown para cambiar estado + badge
+            var selectHtml = 
+                '<select class="form-control form-control-sm font-bold ddl-estado-nc" data-index="' + item.index + '" style="border-color:' + (esActivo ? '#1ab394' : '#d1dade') + ';">' +
+                    '<option value="1"' + (esActivo ? ' selected' : '') + '>ACTIVO</option>' +
+                    '<option value="0"' + (!esActivo ? ' selected' : '') + '>INACTIVO</option>' +
+                '</select>';
+            celdaEstadoHtml = 
+                '<div class="d-flex align-items-center justify-content-center gap-2">' +
+                    selectHtml +
+                    '<div class="ml-2">' + badgeHtml + '</div>' +
+                '</div>';
+        } else {
+            // Modo solo lectura (CANCELADO / CANCELADO SAP u otros): únicamente badge, sin dropdown
+            celdaEstadoHtml = 
+                '<div class="d-flex align-items-center justify-content-center">' +
+                    badgeHtml +
+                '</div>';
+        }
+
+        var fila = 
+            '<tr id="fila_nc_' + item.index + '" class="' + (esActivo ? '' : 'table-light') + '">' +
+                '<td class="text-center font-bold text-muted align-middle">' + (item.index + 1) + '</td>' +
+                '<td class="text-center font-bold text-navy align-middle">' + escapeHtmlNc(item.docEntrySap || "-") + '</td>' +
+                '<td class="text-left font-bold text-dark align-middle"><i class="fa fa-file-text-o mr-1 text-muted"></i>' + escapeHtmlNc(item.numAtCard || "-") + '</td>' +
+                '<td class="text-right font-bold text-dark align-middle">S/ ' + item.monto.toFixed(2) + '</td>' +
+                '<td class="text-center align-middle">' + celdaEstadoHtml + '</td>' +
+            '</tr>';
+
+        $tbody.append(fila);
+    });
+}
+
+$(document).on("change", ".ddl-estado-nc", function () {
+    var $select = $(this);
+    var index = parseInt($select.data("index"), 10);
+    var val = $select.val(); // "1" o "0"
+
+    if (_ncItemsActuales[index]) {
+        _ncItemsActuales[index].estadoActual = val;
+    }
+
+    var $badge = $("#badge_nc_" + index);
+    var $fila = $("#fila_nc_" + index);
+
+    if (val === "1") {
+        $badge.removeClass("badge-secondary").addClass("badge-primary").css("background-color", "#1ab394").text("ACTIVO");
+        $select.css("border-color", "#1ab394");
+        $fila.removeClass("table-light");
+    } else {
+        $badge.removeClass("badge-primary").addClass("badge-secondary").css("background-color", "").text("INACTIVO");
+        $select.css("border-color", "#d1dade");
+        $fila.addClass("table-light");
+    }
+});
+
+$(document).on("click", "#btnGuardarEstadoNc", function () {
+    if (!PV.Utils.puedeInteractuar()) return;
+
+    if ($("#btnGuardarEstadoNc").is(":hidden") || $("#btnGuardarEstadoNc").prop("disabled")) {
+        Swal.fire({
+            type: "warning",
+            title: "Operación no permitida",
+            text: "Esta orden de venta no permite modificaciones porque no se encuentra en un estado editable (CREADO, CREADO SAP o ENVIADO WMS)."
+        });
+        return;
+    }
+
+    var docEntry = parseInt($("#hdnModalNcDocEntry").val(), 10) || 0;
+    if (docEntry <= 0) {
+        Swal.fire({ type: "warning", title: "Atención", text: "DocEntry de orden no válido." });
+        return;
+    }
+
+    if (!_ncItemsActuales || _ncItemsActuales.length === 0) {
+        Swal.fire({ type: "warning", title: "Atención", text: "No hay notas de crédito para actualizar." });
+        return;
+    }
+
+    var huboCambios = _ncItemsActuales.some(function (item) {
+        return item.estadoActual !== item.estadoOriginal;
+    });
+
+    if (!huboCambios) {
+        Swal.fire({
+            type: "info",
+            title: "Sin cambios",
+            text: "No se detectaron modificaciones en el estado de las notas de crédito."
+        });
+        return;
+    }
+
+    // Reconstruir ORIN_RECORD con formato: ESTADO|DOCENTRY_NC|SALDO|NUMATCARD;
+    var partes = [];
+    _ncItemsActuales.forEach(function (item) {
+        var segmento = item.estadoActual + "|" + item.docEntrySap + "|" + item.monto.toFixed(2) + "|" + item.numAtCard;
+        if (item.partesExtras && item.partesExtras.length > 0) {
+            segmento += "|" + item.partesExtras.join("|");
+        }
+        partes.push(segmento);
+    });
+
+    var nuevoOrinRecord = partes.join(";") + ";";
+
+    var payload = {
+        DocEntry: docEntry,
+        OrinRecord: nuevoOrinRecord
+    };
+
+    PV.Utils.ejecutarAccion(function (reHabilitar) {
+        $.ajax({
+            url: "/PuntoVenta/ActualizarEstadoNotasCredito",
+            type: "POST",
+            contentType: "application/json",
+            dataType: "json",
+            data: JSON.stringify(payload),
+            beforeSend: function () {
+                $("body").addClass("loading");
+            },
+            success: function (resp) {
+                if (resp && resp.esAccesoDenegado) {
+                    $("#modalGestionarNc").modal("hide");
+                    limpiarModalGestionarNc();
+                    if (window.PERMISOS_PV) {
+                        window.PERMISOS_PV.puedeActivarInactivarNc = false;
+                        if (Array.isArray(window.PERMISOS_PV.acciones)) {
+                            window.PERMISOS_PV.acciones = window.PERMISOS_PV.acciones.filter(function (a) {
+                                return a !== "VENTA.ACTIVAR_INACTIVAR_NC";
+                            });
+                        }
+                    }
+                    if (tblBusquedaVentas) {
+                        tblBusquedaVentas.column(4).visible(false);
+                    }
+                    Swal.fire({
+                        type: "warning",
+                        title: "Acceso Denegado",
+                        text: resp.error || "No cuenta con autorización para actualizar notas de crédito."
+                    });
+                    return;
+                }
+
+                var esExito = resp && (resp.success === true || resp.Success === true);
+                if (esExito) {
+                    $("#modalGestionarNc").modal("hide");
+
+                    // Sincronizar estado original con el guardado
+                    _ncItemsActuales.forEach(function (it) {
+                        it.estadoOriginal = it.estadoActual;
+                    });
+
+                    // Actualizar el objeto de datos en la fila del DataTable
+                    if (_filaNcSeleccionada && tblBusquedaVentas) {
+                        var row = tblBusquedaVentas.row(_filaNcSeleccionada);
+                        var rowData = row.data();
+                        if (rowData) {
+                            rowData.ORIN_RECORD = nuevoOrinRecord;
+                            rowData.orinRecord = nuevoOrinRecord;
+                            row.data(rowData).draw(false);
+                        }
+                    }
+
+                    Swal.fire({
+                        type: "success",
+                        title: "Actualizado",
+                        text: resp.message || "Estado de notas de crédito actualizado exitosamente."
+                    });
+                } else {
+                    Swal.fire({
+                        type: "error",
+                        title: "Error al actualizar",
+                        text: resp ? (resp.message || resp.error || "No se pudo actualizar el estado de las notas de crédito.") : "Error de comunicación con el servidor."
+                    });
+                }
+            },
+            error: function (xhr, status, error) {
+                if (xhr.status === 403) {
+                    $("#modalGestionarNc").modal("hide");
+                    limpiarModalGestionarNc();
+                    if (window.PERMISOS_PV) {
+                        window.PERMISOS_PV.puedeActivarInactivarNc = false;
+                    }
+                    if (tblBusquedaVentas) {
+                        tblBusquedaVentas.column(4).visible(false);
+                    }
+                    var msg403 = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : "No cuenta con autorización para actualizar notas de crédito.";
+                    Swal.fire({
+                        type: "warning",
+                        title: "Acceso Denegado",
+                        text: msg403
+                    });
+                    return;
+                }
+
+                var msg = "Error al actualizar las notas de crédito en el servidor.";
+                try {
+                    var json = JSON.parse(xhr.responseText);
+                    if (json && (json.error || json.message)) msg = json.error || json.message;
+                } catch (e) {}
+                Swal.fire({
+                    type: "error",
+                    title: "Error",
+                    text: msg
+                });
+            },
+            complete: function () {
+                $("body").removeClass("loading");
+                if (typeof reHabilitar === "function") reHabilitar();
+            }
+        });
+    });
+});
+
 function fijarListaPrecio(priceList) {
     if (!priceList && priceList !== 0) return;
     var valStr = priceList.toString().trim();
@@ -2196,53 +2695,168 @@ function cargarDetalleEditableOptimizado(resp) {
     });
 }
 
-function marcarNotasCreditoGuardadas(resp) {
-    if (!resp.ORIN_RECORD) return;
+function marcarNotasCreditoGuardadas(resp, esModoLectura) {
+    if (!resp) return;
 
-    var partes = resp.ORIN_RECORD.split(";");
-    partes.forEach(function (parte) {
-        if (!parte || !parte.trim()) return;
+    var esSoloLectura = (esModoLectura !== undefined)
+        ? !!esModoLectura
+        : (PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly());
 
-        // Detección de formato:
-        if (parte.indexOf("|") >= 0) {
-            // NUEVO FORMATO: 1|DOCENTRY_NC|SALDO|NUMATCARD
-            var datos = parte.split("|");
-            if (datos.length >= 2) {
-                var estadoActivo = (datos[0] || "1").trim() === "1";
-                if (!estadoActivo) return; // Si la NC fue desactivada (flag 0), no se marca
+    var orinRecord = resp.ORIN_RECORD || resp.orinRecord || "";
+    var notaCredito = resp.NOTA_CREDITO || resp.notaCredito || "";
+    var notasCreditoList = resp.NOTAS_CREDITO || resp.notasCredito || [];
 
-                var docentry = parseInt(datos[1], 10);
-                var numatcard = (datos[3] || "").trim();
+    if (!orinRecord && !notaCredito && (!Array.isArray(notasCreditoList) || notasCreditoList.length === 0)) {
+        PV.Detalle.recalcularTotales();
+        if (PV.DraftManager && typeof PV.DraftManager.finalizarRestauracionBorrador === "function") {
+            PV.DraftManager.finalizarRestauracionBorrador();
+        }
+        return;
+    }
 
-                var $chk = $(".chk-nota-credito").filter(function () {
-                    var chkDocEntry = parseInt($(this).data("docentry"), 10) || parseInt($(this).val(), 10);
-                    var chkNumAtCard = ($(this).data("numatcard") || "").toString().trim();
-                    return (docentry > 0 && chkDocEntry === docentry)
-                        || (numatcard !== "" && chkNumAtCard === numatcard);
-                });
+    var ncsDescartadasPorUso = [];
+    var ncsNoDisponibles = [];
+    var ncsParaMarcar = [];
 
-                if ($chk.length > 0) {
-                    $chk.prop("checked", true);
+    if (orinRecord) {
+        var partes = orinRecord.split(";");
+        partes.forEach(function (parte) {
+            if (!parte || !parte.trim()) return;
+
+            // Detección de formato:
+            if (parte.indexOf("|") >= 0) {
+                // NUEVO FORMATO: 1|DOCENTRY_NC|SALDO|NUMATCARD
+                var datos = parte.split("|");
+                if (datos.length >= 2) {
+                    var estadoActivo = (datos[0] || "1").trim() === "1";
+                    if (!estadoActivo) return; // Si la NC fue desactivada (flag 0), no se marca
+
+                    var docentry = parseInt(datos[1], 10) || 0;
+                    var numatcard = (datos[3] || "").trim();
+                    ncsParaMarcar.push({ docentry: docentry, numatcard: numatcard });
+                }
+            } else {
+                // FORMATO ANTERIOR (retrocompatibilidad): DOCNUM.SALDO
+                var primerPunto = parte.indexOf(".");
+                if (primerPunto > 0) {
+                    var docnum = parseInt(parte.substring(0, primerPunto), 10) || 0;
+                    ncsParaMarcar.push({ docnum: docnum });
                 }
             }
+        });
+    }
+
+    if (ncsParaMarcar.length === 0 && !orinRecord && notaCredito) {
+        // Fallback desde NOTA_CREDITO solo si ORIN_RECORD no vino
+        var ncs = notaCredito.split("|");
+        ncs.forEach(function (nc) {
+            var trimmed = (nc || "").trim();
+            if (trimmed) {
+                ncsParaMarcar.push({ numatcard: trimmed });
+            }
+        });
+    }
+
+    if (Array.isArray(notasCreditoList) && notasCreditoList.length > 0 && !orinRecord) {
+        notasCreditoList.forEach(function (de) {
+            var deNum = parseInt(de, 10) || 0;
+            if (deNum > 0 && !ncsParaMarcar.some(function (x) { return x.docentry === deNum; })) {
+                ncsParaMarcar.push({ docentry: deNum });
+            }
+        });
+    }
+
+    ncsParaMarcar.forEach(function (item) {
+        var docentry = item.docentry || 0;
+        var numatcard = item.numatcard || "";
+        var docnum = item.docnum || 0;
+
+        var $chk = $(".chk-nota-credito").filter(function () {
+            var chkDocEntry = parseInt($(this).data("docentry"), 10) || parseInt($(this).val(), 10) || 0;
+            var chkNumAtCard = ($(this).data("numatcard") || "").toString().trim();
+            var chkDocNum = parseInt($(this).data("docnum"), 10) || 0;
+
+            if (docentry > 0 && chkDocEntry === docentry) return true;
+            if (numatcard !== "") {
+                if (chkNumAtCard === numatcard) return true;
+                // Comparación sin prefijo de 2 dígitos (ej: 07-)
+                var pChk = chkNumAtCard.split("-");
+                var chkLimpio = pChk.length >= 3 ? pChk.slice(1).join("-").trim() : chkNumAtCard;
+                var pNc = numatcard.split("-");
+                var ncLimpio = pNc.length >= 3 ? pNc.slice(1).join("-").trim() : numatcard;
+                if (chkLimpio && ncLimpio && chkLimpio === ncLimpio) return true;
+            }
+            if (docnum > 0 && chkDocNum === docnum) return true;
+            return false;
+        });
+
+        if ($chk.length === 0) {
+            // La nota de crédito ya no está abierta en SAP (cerrada, cobrada o no existe)
+            if (!esSoloLectura) {
+                ncsNoDisponibles.push({
+                    docentry: docentry,
+                    numatcard: numatcard || (docnum > 0 ? ("N° " + docnum) : "")
+                });
+            }
+            return;
+        }
+
+        // Si la nota de crédito está en uso en otra orden (borde rojo / data-en-uso = 1)
+        var estaEnUso = !esSoloLectura && ($chk.data("en-uso") === "1" || $chk.data("en-uso") === 1 || $chk.closest(".nota-credito-item").hasClass("nota-credito-bloqueada"));
+
+        if (estaEnUso) {
+            // DESELECCIONAR: está siendo usada en otra orden
+            $chk.prop("checked", false);
+            ncsDescartadasPorUso.push({
+                docentry: docentry || $chk.data("docentry") || $chk.val(),
+                numatcard: numatcard || $chk.data("numatcard") || "",
+                ordenUso: $chk.data("orden-uso") || 0
+            });
         } else {
-            // FORMATO ANTERIOR (retrocompatibilidad): DOCNUM.SALDO
-            var primerPunto = parte.indexOf(".");
-            if (primerPunto > 0) {
-                var docnum = parseInt(parte.substring(0, primerPunto), 10);
-
-                var $chk = $(".chk-nota-credito").filter(function () {
-                    return parseInt($(this).data("docnum"), 10) === docnum;
-                });
-
-                if ($chk.length > 0) {
-                    $chk.prop("checked", true);
-                }
-            }
+            // Nota de crédito habilitada y disponible
+            $chk.prop("checked", true);
         }
     });
 
     PV.Detalle.recalcularTotales();
+
+    // Alertar al usuario si hubo notas de crédito descartadas por estar en uso o no disponibles
+    if (!esSoloLectura && (ncsDescartadasPorUso.length > 0 || ncsNoDisponibles.length > 0)) {
+        var msgs = [];
+        if (ncsDescartadasPorUso.length > 0) {
+            var detalleUso = ncsDescartadasPorUso.map(function (x) {
+                var label = x.numatcard || ("NC N° " + x.docentry);
+                return x.ordenUso ? (label + " <em>(en uso en Orden N° " + x.ordenUso + ")</em>") : label;
+            }).join(", ");
+            msgs.push("La(s) siguiente(s) nota(s) de crédito seleccionada(s) previamente:<br><strong>" + detalleUso + "</strong><br>está(n) siendo usada(s) en otra orden y fue(ron) <strong>deseleccionada(s) automáticamente</strong>.");
+        }
+
+        if (ncsNoDisponibles.length > 0) {
+            var detalleNoDisp = ncsNoDisponibles.map(function (x) {
+                return x.numatcard || ("NC N° " + x.docentry);
+            }).join(", ");
+            msgs.push("La(s) nota(s) de crédito:<br><strong>" + detalleNoDisp + "</strong><br>ya no se encuentra(n) disponible(s) en SAP (saldo 0 o cerrada) y fue(ron) retirada(s).");
+        }
+
+        Swal.fire({
+            type: "warning",
+            title: "Notas de Crédito Actualizadas",
+            html: msgs.join("<br><br>") + "<br><br><span class='text-muted'>Los totales de la venta han sido recalculados automáticamente sin estas notas de crédito.</span>",
+            confirmButtonText: "Entendido",
+            confirmButtonColor: "#f8ac59"
+        });
+
+        // Actualizar el borrador guardado en localStorage sin la NC descartada
+        if (PV.DraftManager && typeof PV.DraftManager.guardarBorradorActual === "function") {
+            setTimeout(function () {
+                PV.DraftManager.guardarBorradorActual(true);
+            }, 300);
+        }
+    }
+
+    if (PV.DraftManager && typeof PV.DraftManager.finalizarRestauracionBorrador === "function") {
+        PV.DraftManager.finalizarRestauracionBorrador();
+    }
 }
 
 function recargarDetalleDesdeSAP(resp, docStatus, estadoEnvio) {
