@@ -331,15 +331,15 @@ PV.DraftManager = (function () {
                 notasCreditoEntries.push(deNum);
             }
 
+            // Formato columna NOTA_CREDITO: NUMATCARD;MONTO_C|
+            // Siempre numatcard debe ser los caracteres después del primer "-"
             let ncNumLimpio = numAtCard;
-            let partesNc = numAtCard.split("-");
-            if (partesNc.length >= 3) {
-                ncNumLimpio = partesNc.slice(1).join("-").trim();
-            } else if (partesNc.length === 2 && partesNc[0].length <= 2) {
-                ncNumLimpio = partesNc[1].trim();
+            const idxGuion = numAtCard.indexOf("-");
+            if (idxGuion >= 0) {
+                ncNumLimpio = numAtCard.substring(idxGuion + 1).trim();
             }
             if (ncNumLimpio) {
-                notasCreditoParts.push(ncNumLimpio);
+                notasCreditoParts.push(`${ncNumLimpio};${saldo.toFixed(2)}`);
             }
         });
 

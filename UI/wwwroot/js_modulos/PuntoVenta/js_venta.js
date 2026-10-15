@@ -2752,7 +2752,11 @@ function marcarNotasCreditoGuardadas(resp, esModoLectura) {
         ncs.forEach(function (nc) {
             var trimmed = (nc || "").trim();
             if (trimmed) {
-                ncsParaMarcar.push({ numatcard: trimmed });
+                // Nuevo formato: NUMATCARD;MONTO_C (retrocompatible con NUMATCARD solo)
+                var numatcard = trimmed.split(";")[0].trim();
+                if (numatcard) {
+                    ncsParaMarcar.push({ numatcard: numatcard });
+                }
             }
         });
     }
@@ -2779,12 +2783,12 @@ function marcarNotasCreditoGuardadas(resp, esModoLectura) {
             if (docentry > 0 && chkDocEntry === docentry) return true;
             if (numatcard !== "") {
                 if (chkNumAtCard === numatcard) return true;
-                // Comparación sin prefijo de 2 dígitos (ej: 07-)
-                var pChk = chkNumAtCard.split("-");
-                var chkLimpio = pChk.length >= 3 ? pChk.slice(1).join("-").trim() : chkNumAtCard;
-                var pNc = numatcard.split("-");
-                var ncLimpio = pNc.length >= 3 ? pNc.slice(1).join("-").trim() : numatcard;
-                if (chkLimpio && ncLimpio && chkLimpio === ncLimpio) return true;
+                // Comparación de caracteres después del primer guión (-)
+                var idxChk = chkNumAtCard.indexOf("-");
+                var chkLimpio = idxChk >= 0 ? chkNumAtCard.substring(idxChk + 1).trim() : chkNumAtCard;
+                var idxNc = numatcard.indexOf("-");
+                var ncLimpio = idxNc >= 0 ? numatcard.substring(idxNc + 1).trim() : numatcard;
+                if (chkLimpio && ncLimpio && chkLimpio.toLowerCase() === ncLimpio.toLowerCase()) return true;
             }
             if (docnum > 0 && chkDocNum === docnum) return true;
             return false;
