@@ -801,7 +801,8 @@ PV.Validaciones = (function () {
 
         if (docCliente.length === 11 && !esGrupoExcluidoDigemid) {
             const captura = PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function" ? PV.Cliente.obtenerCapturaActual() : null;
-            const tieneCaptura = captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0));
+            const esContingenciaPrevia = captura && (captura.requiereRegularizacion === true || (captura.estadoServicioDigemid && String(captura.estadoServicioDigemid).toUpperCase() === "CONTINGENCIA"));
+            const tieneCaptura = esContingenciaPrevia || (captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0)));
 
             if (tieneCaptura) {
                 // Validación 1: El RUC de la captura debe coincidir con el cliente actual
