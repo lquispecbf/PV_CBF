@@ -312,6 +312,41 @@ PV.DraftManager = (function () {
             tipoOrigen = "REABIERTA_SAP";
         }
 
+        let orinTotal = 0;
+        const orinRecordParts = [];
+        const notasCreditoParts = [];
+        const notasCreditoEntries = [];
+
+        $(".chk-nota-credito:checked").each(function () {
+            const saldo = parseFloat($(this).data("saldo")) || parseFloat($(this).data("total")) || 0;
+            const docnum = $(this).data("docnum") || "";
+            const docentry = $(this).data("docentry") || $(this).val() || "";
+            const numAtCard = ($(this).data("numatcard") || docnum || "").toString().trim();
+
+            orinTotal += saldo;
+            orinRecordParts.push(`1|${docentry}|${saldo.toFixed(2)}|${numAtCard}`);
+
+            const deNum = parseInt(docentry, 10);
+            if (!isNaN(deNum) && deNum > 0 && !notasCreditoEntries.includes(deNum)) {
+                notasCreditoEntries.push(deNum);
+            }
+
+            // Formato columna NOTA_CREDITO: NUMATCARD;MONTO_C|
+            // Siempre numatcard debe ser los caracteres después del primer "-"
+            let ncNumLimpio = numAtCard;
+            const idxGuion = numAtCard.indexOf("-");
+            if (idxGuion >= 0) {
+                ncNumLimpio = numAtCard.substring(idxGuion + 1).trim();
+            }
+            if (ncNumLimpio) {
+                notasCreditoParts.push(`${ncNumLimpio};${saldo.toFixed(2)}`);
+            }
+        });
+
+        const orinRecordFinal = orinRecordParts.length > 0 ? (orinRecordParts.join(";") + ";") : "";
+        const notaCreditoFinal = notasCreditoParts.length > 0 ? (notasCreditoParts.join("|") + "|") : "";
+        const netoActual = parseFloat($("#txtVentaNeto").val()) || Math.max(totalVenta + flete - descuento - orinTotal, 0);
+
         const idDeterminista = _generarDraftIdDeterminista(docEntryVal, docEntrySapVal);
         const draftIdFinal = idDeterminista || _obtenerCurrentDraftId();
 
@@ -334,6 +369,10 @@ PV.DraftManager = (function () {
                 listaPrecio: $("#ddlClienteListaPrecio").val() || "",
                 totalArticulos: items.length,
                 montoTotal: totalVenta,
+                montoNeto: netoActual,
+                orinTotal: orinTotal,
+                orinRecord: orinRecordFinal,
+                notaCredito: notaCreditoFinal,
                 comentarios: ($("#txtLogisticaComentarios").val() || "").trim()
             },
             datosVenta: {
@@ -356,6 +395,10 @@ PV.DraftManager = (function () {
                 IMP_NET: subtotal,
                 IMP_IGV: igv,
                 IMP_TOTAL: totalVenta,
+                ORIN_TOTAL: orinTotal,
+                ORIN_RECORD: orinRecordFinal,
+                NOTA_CREDITO: notaCreditoFinal,
+                NOTAS_CREDITO: notasCreditoEntries,
                 DELIVERY_DATE: $("#txtLogisticaFechaEntrega").val() || "",
                 DELIVERY_TIME: $("#ddlLogisticaHoraEntrega").val() || "",
                 DELIVERY_PLACE: $("#ddlClienteDireccionEnvioId").val() || "",
@@ -377,6 +420,7 @@ PV.DraftManager = (function () {
     }
 
     function guardarBorradorActual(silencioso = true) {
+        clearTimeout(_debounceTimer);
         if (!_tienePermisoBorrador()) {
             _mostrarEstadoAutoSave("");
             return;
@@ -628,10 +672,13 @@ PV.DraftManager = (function () {
                 showConfirmButton: false
             });
 
+            // Timeout de seguridad en caso de que la carga asíncrona de NCs no reporte callback
             setTimeout(function () {
-                _restaurandoBorrador = false;
-                guardarBorradorActual(true);
-            }, 1000);
+                if (_restaurandoBorrador) {
+                    _restaurandoBorrador = false;
+                    guardarBorradorActual(true);
+                }
+            }, 3500);
 
         } catch (e) {
             _restaurandoBorrador = false;
@@ -642,6 +689,12 @@ PV.DraftManager = (function () {
                 text: "Ocurrió un error al intentar cargar el borrador seleccionado."
             });
         }
+    }
+
+    function finalizarRestauracionBorrador() {
+        if (!_restaurandoBorrador) return;
+        _restaurandoBorrador = false;
+        guardarBorradorActual(true);
     }
 
     function actualizarBadgeBorradores() {
@@ -694,7 +747,16 @@ PV.DraftManager = (function () {
             $("#btnEliminarTodosBorradores").prop("disabled", false);
             lista.forEach(function (b, idx) {
                 const fecha = formatearFechaHora(b.fechaModificacion);
-                const totalFmt = (parseFloat(b.resumen.montoTotal) || 0).toFixed(2);
+                const orinTotal = parseFloat(b.resumen.orinTotal) || 0;
+                const montoNeto = (b.resumen.montoNeto !== undefined && b.resumen.montoNeto !== null)
+                    ? parseFloat(b.resumen.montoNeto)
+                    : Math.max((parseFloat(b.resumen.montoTotal) || 0) - orinTotal, 0);
+                const netoFmt = (isNaN(montoNeto) ? 0 : montoNeto).toFixed(2);
+                let badgeNc = '';
+                if (orinTotal > 0 || (b.resumen.notaCredito && b.resumen.notaCredito.trim())) {
+                    const textoNc = (b.resumen.notaCredito || "").replace(/\|+$/, "").trim();
+                    badgeNc = `<div class="mt-1"><span class="badge badge-success" title="Notas de crédito: ${textoNc}"><i class="fa fa-ticket-alt mr-1"></i>NC: -S/ ${orinTotal.toFixed(2)}</span></div>`;
+                }
                 const esEstaPestana = (b.draftId === _currentDraftId);
                 const badgePestana = esEstaPestana ? '<span class="badge badge-primary ml-1">Esta pestaña</span>' : '';
 
@@ -722,7 +784,10 @@ PV.DraftManager = (function () {
                             ${b.resumen.clienteRuc ? '<br><small class="text-muted">RUC/DNI: ' + b.resumen.clienteRuc + '</small>' : ''}
                         </td>
                         <td class="text-center"><span class="badge badge-info">${b.resumen.totalArticulos}</span></td>
-                        <td class="text-right font-weight-bold">S/ ${totalFmt}</td>
+                        <td class="text-right">
+                            <div class="font-weight-bold">S/ ${netoFmt}</div>
+                            ${badgeNc}
+                        </td>
                         <td><small class="text-muted">${b.resumen.almacenNombre || b.resumen.almacen || '-'}</small></td>
                         <td class="text-center" style="white-space:nowrap;">
                             <button type="button" class="btn btn-xs btn-primary btn-restaurar-borrador" data-draft-id="${b.draftId}" title="Restaurar en esta pestaña">
@@ -839,6 +904,11 @@ PV.DraftManager = (function () {
             if (document.activeElement && typeof document.activeElement.blur === "function") {
                 try { document.activeElement.blur(); } catch (err) { }
             }
+
+            // Forzar guardado inmediato si hay cambios pendientes por debounce
+            clearTimeout(_debounceTimer);
+            guardarBorradorActual(true);
+
             abrirModalBorradores();
         });
 
@@ -954,6 +1024,7 @@ PV.DraftManager = (function () {
         notificarCambio: notificarCambio,
         guardarBorradorActual: guardarBorradorActual,
         restaurarBorrador: restaurarBorrador,
+        finalizarRestauracionBorrador: finalizarRestauracionBorrador,
         listarBorradores: listarBorradores,
         eliminarBorrador: eliminarBorrador,
         eliminarBorradoresMultiples: eliminarBorradoresMultiples,

@@ -514,12 +514,52 @@ PV.Validaciones = (function () {
 
         let orinTotal = 0;
         const orinRecordParts = [];
+        const notasCreditoParts = [];
+
+        // Validación obligatoria en cliente: Ninguna nota de crédito seleccionada puede estar en uso o bloqueada
+        const ncsEnUso = [];
+        $(".chk-nota-credito:checked").each(function () {
+            const enUso = $(this).data("en-uso") === "1" || $(this).data("en-uso") === 1 || $(this).closest(".nota-credito-item").hasClass("nota-credito-bloqueada");
+            if (enUso) {
+                const numAtCard = ($(this).data("numatcard") || $(this).data("docnum") || $(this).val() || "").toString().trim();
+                const ordenUso = $(this).data("orden-uso") || "";
+                ncsEnUso.push(ordenUso ? `${numAtCard} (en uso en Orden N° ${ordenUso})` : numAtCard);
+            }
+        });
+
+        if (ncsEnUso.length > 0) {
+            Swal.fire({
+                type: "warning",
+                title: "Nota de crédito no disponible",
+                html: `No se puede guardar la venta porque la(s) siguiente(s) nota(s) de crédito ya está(n) siendo utilizada(s) en otra orden:<br><br><strong>${ncsEnUso.join("<br>")}</strong><br><br>Por favor deselecciónela(s) para continuar.`
+            });
+            return null;
+        }
 
         $(".chk-nota-credito:checked").each(function () {
-            const total = parseFloat($(this).data("total")) || 0;
+            const saldo = parseFloat($(this).data("saldo")) || parseFloat($(this).data("total")) || 0;
             const docnum = $(this).data("docnum") || "";
-            orinTotal += total;
-            orinRecordParts.push(`${docnum}.${total}`);
+            const docentry = $(this).data("docentry") || $(this).val() || "";
+            const numAtCard = ($(this).data("numatcard") || docnum || "").toString().trim();
+
+            orinTotal += saldo;
+
+            // Formato anterior (comentado por referencia):
+            // orinRecordParts.push(`${docnum}.${saldo}`);
+
+            // Nuevo formato: 1|DOCENTRY_NC|SALDO|NUMATCARD
+            orinRecordParts.push(`1|${docentry}|${saldo.toFixed(2)}|${numAtCard}`);
+
+            // Formato columna NOTA_CREDITO: NUMATCARD;MONTO_C|
+            // Siempre numatcard debe ser los caracteres después del primer "-"
+            let ncNumLimpio = numAtCard;
+            const idxGuion = numAtCard.indexOf("-");
+            if (idxGuion >= 0) {
+                ncNumLimpio = numAtCard.substring(idxGuion + 1).trim();
+            }
+            if (ncNumLimpio) {
+                notasCreditoParts.push(`${ncNumLimpio};${saldo.toFixed(2)}`);
+            }
         });
 
         const descuentoTotal = parseFloat($("#txtVentaDescuento").val()) || 0;
@@ -562,7 +602,8 @@ PV.Validaciones = (function () {
             LICTRADNUM: $("#txtClienteRuc").val() || "",
             COMMENTS: ($("#txtLogisticaComentarios").val() || "").trim().substring(0, 254),
             ORIN_TOTAL: orinTotal,
-            ORIN_RECORD: orinRecordParts.join(";"),
+            ORIN_RECORD: orinRecordParts.length > 0 ? (orinRecordParts.join(";") + ";") : "",
+            NOTA_CREDITO: notasCreditoParts.length > 0 ? (notasCreditoParts.join("|") + "|") : "",
             IMP_DELIVERY: flete,
             IMP_DSCTO: descuentoLinea,
             IMP_NET: neto,
@@ -760,7 +801,8 @@ PV.Validaciones = (function () {
 
         if (docCliente.length === 11 && !esGrupoExcluidoDigemid) {
             const captura = PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function" ? PV.Cliente.obtenerCapturaActual() : null;
-            const tieneCaptura = captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0));
+            const esContingenciaPrevia = captura && (captura.requiereRegularizacion === true || (captura.estadoServicioDigemid && String(captura.estadoServicioDigemid).toUpperCase() === "CONTINGENCIA"));
+            const tieneCaptura = esContingenciaPrevia || (captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0)));
 
             if (tieneCaptura) {
                 // Validación 1: El RUC de la captura debe coincidir con el cliente actual

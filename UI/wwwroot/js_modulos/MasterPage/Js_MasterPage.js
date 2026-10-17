@@ -153,6 +153,67 @@ $(document).ready(function () {
         sessionStorage.setItem('AVISO_CLAVE_MOSTRADO', '1');
     }
 
+    /* MANEJO GLOBAL DE EXPIRACIÓN DE SESIÓN */
+    let sesionExpiradaMostrada = false;
+    let keepAliveIntervalId = null;
+    let ultimoKeepAliveMs = 0;
+
+    function notificarSesionExpiradaYRedirigir() {
+        if (window.location.pathname.toLowerCase().includes('/seguridad/login')) {
+            return;
+        }
+
+        if (sesionExpiradaMostrada || window.__sesionExpiradaMostrada || sessionStorage.getItem('CBF_SESION_EXPIRADA_DIALOGO') === '1') {
+            return;
+        }
+
+        sesionExpiradaMostrada = true;
+        window.__sesionExpiradaMostrada = true;
+        sessionStorage.setItem('CBF_SESION_EXPIRADA_DIALOGO', '1');
+
+        if (keepAliveIntervalId) {
+            clearInterval(keepAliveIntervalId);
+            keepAliveIntervalId = null;
+        }
+
+        $('body').removeClass('loading');
+        $.session.clear();
+        sessionStorage.clear();
+        localStorage.removeItem(SESSION_ACTIVE_USER_KEY);
+
+        // Esperar estrictamente a que el usuario presione el botón Aceptar / OK
+        if (typeof swal === 'function') {
+            swal({
+                title: "Sesión expirada",
+                text: "Su sesión ha finalizado. Presione Aceptar para ir al inicio de sesión.",
+                type: "warning",
+                confirmButtonColor: "#1ab394",
+                confirmButtonText: "Aceptar",
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            }).then(function () {
+                sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
+                window.location.href = '/Seguridad/Login';
+            });
+        } else if (window.Swal && typeof window.Swal.fire === 'function') {
+            window.Swal.fire({
+                title: "Sesión expirada",
+                text: "Su sesión ha finalizado. Presione Aceptar para ir al inicio de sesión.",
+                icon: "warning",
+                confirmButtonColor: "#1ab394",
+                confirmButtonText: "Aceptar",
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            }).then(function () {
+                sessionStorage.removeItem('CBF_SESION_EXPIRADA_DIALOGO');
+                window.location.href = '/Seguridad/Login';
+            });
+        } else {
+            alert("Su sesión ha finalizado. Presione Aceptar para continuar.");
+            window.location.href = '/Seguridad/Login';
+        }
+    }
+
     /* MANEJO GLOBAL DE ERRORES AJAX */
     $(document).ajaxError(function (event, xhr, settings) {
         $('body').removeClass('loading');
@@ -414,9 +475,6 @@ $(document).ready(function () {
     }
 
     /* RUTINA DE KEEP-ALIVE PARA USUARIOS AUTORIZADOS EN PUNTO DE VENTA */
-    let keepAliveIntervalId = null;
-    let ultimoKeepAliveMs = 0;
-
     function ejecutarPingKeepAlive() {
         if (window.location.pathname.toLowerCase().includes('/seguridad/login')) {
             if (keepAliveIntervalId) {
