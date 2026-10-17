@@ -171,8 +171,21 @@ PV.Cliente = (function () {
             const ruc = ($("#txtClienteRuc").val() || "").trim();
             const razonSocial = ($("#txtClienteNombre").val() || "").trim();
 
-            // Si la orden ya tiene constancia DIGEMID capturada/cargada (y no requiere regularización)
-            if (_digemidCapturaActual && (_digemidCapturaActual.nombreArchivo || _digemidCapturaActual.imagenBase64) && !_digemidCapturaActual.requiereRegularizacion) {
+            // Si es modo lectura O tiene captura válida de hoy (y no requiere regularización), mostrar visor
+            let esMismoDia = false;
+            if (_digemidCapturaActual) {
+                const rawFecha = _digemidCapturaActual.fechaCaptura || _digemidCapturaActual.FECHA_CAPTURA || _digemidCapturaActual.fechaConsulta || _digemidCapturaActual.FECHA_CONSULTA;
+                if (rawFecha) {
+                    const dCap = parsearFechaLocal(rawFecha);
+                    const dHoy = new Date();
+                    esMismoDia = !isNaN(dCap.getTime()) &&
+                        dCap.getFullYear() === dHoy.getFullYear() &&
+                        dCap.getMonth() === dHoy.getMonth() &&
+                        dCap.getDate() === dHoy.getDate();
+                }
+            }
+
+            if (_digemidCapturaActual && (_digemidCapturaActual.nombreArchivo || _digemidCapturaActual.imagenBase64) && !_digemidCapturaActual.requiereRegularizacion && (esModoLectura || esMismoDia)) {
                 mostrarVisorImagenDigemid(_digemidCapturaActual);
                 return;
             }
@@ -968,9 +981,28 @@ PV.Cliente = (function () {
         var tieneCaptura = _digemidCapturaActual && (_digemidCapturaActual.imagenBase64 || _digemidCapturaActual.nombreArchivo);
         var requiereReg = _digemidCapturaActual && _digemidCapturaActual.requiereRegularizacion;
         var esExcluido = esGrupoExcluidoDigemid();
+        var esModoLectura = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
 
-        if (tieneCaptura && !requiereReg) {
-            var fc = parsearFechaLocal(_digemidCapturaActual.fechaCaptura);
+        // Verificar frescura de la captura (mismo día calendario)
+        var esMismoDia = false;
+        if (_digemidCapturaActual) {
+            var rawF = _digemidCapturaActual.fechaCaptura || _digemidCapturaActual.FECHA_CAPTURA || _digemidCapturaActual.fechaConsulta || _digemidCapturaActual.FECHA_CONSULTA;
+            if (rawF) {
+                var dCap = parsearFechaLocal(rawF);
+                var dHoy = new Date();
+                esMismoDia = !isNaN(dCap.getTime()) &&
+                    dCap.getFullYear() === dHoy.getFullYear() &&
+                    dCap.getMonth() === dHoy.getMonth() &&
+                    dCap.getDate() === dHoy.getDate();
+            }
+        }
+
+        if (_estadoServicioDigemid && !_estadoServicioDigemid.disponible) {
+            $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
+                .html('<i class="fa fa-exclamation-triangle mr-1"></i> DIGEMID (Offline)')
+                .attr("title", "Servicio DIGEMID fuera de servicio (" + (_estadoServicioDigemid.motivo || "") + "). Clic para reintentar.");
+        } else if (tieneCaptura && !requiereReg && (esModoLectura || esMismoDia)) {
+            var fc = parsearFechaLocal(_digemidCapturaActual.fechaCaptura || _digemidCapturaActual.FECHA_CAPTURA);
             var fcFmt = ("0" + fc.getHours()).slice(-2) + ":" + ("0" + fc.getMinutes()).slice(-2);
             $btn.removeClass("btn-info btn-warning btn-danger btn-secondary").addClass("btn-success")
                 .html('<i class="fa fa-check-circle mr-1"></i> DIGEMID (' + fcFmt + ')')
@@ -979,10 +1011,10 @@ PV.Cliente = (function () {
             $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
                 .html('<i class="fa fa-exclamation-circle mr-1"></i> DIGEMID (Pendiente)')
                 .attr("title", "Constancia DIGEMID pendiente de regularización. Clic para regularizar.");
-        } else if (_estadoServicioDigemid && !_estadoServicioDigemid.disponible) {
+        } else if (tieneCaptura && !esMismoDia && !esModoLectura) {
             $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
-                .html('<i class="fa fa-exclamation-triangle mr-1"></i> DIGEMID (Offline)')
-                .attr("title", "Servicio DIGEMID fuera de servicio (" + (_estadoServicioDigemid.motivo || "") + "). Clic para reintentar.");
+                .html('<i class="fa fa-exclamation-circle mr-1"></i> DIGEMID (Vencido)')
+                .attr("title", "Constancia DIGEMID de fecha anterior. Debe volver a consultar para el día de hoy.");
         } else if (esExcluido) {
             $btn.removeClass("btn-success btn-warning btn-danger btn-secondary").addClass("btn-info")
                 .html('<i class="fa fa-hospital-alt mr-1"></i> DIGEMID (Opcional)')
@@ -1196,10 +1228,13 @@ PV.Cliente = (function () {
                     actualizarBadgeDigemid();
 
                     Swal.fire({
-                        type: "error",
-                        title: "Consulta DIGEMID",
-                        text: msgError,
-                        confirmButtonColor: "#1ab394"
+                        type: "warning",
+                        title: "Servicio DIGEMID No Disponible (Offline)",
+                        html: "<p>El portal de DIGEMID no respondió satisfactoriamente:</p>" +
+                              "<p class='text-danger font-bold'><small>" + PV.esc(msgError) + "</small></p>" +
+                              "<p class='mb-0'>El sistema ha pasado a <strong>Modo Offline</strong>. Puede guardar la venta en <strong>Modo de Contingencia</strong> (Pendiente de regularización).</p>",
+                        confirmButtonText: "Entendido",
+                        confirmButtonColor: "#f8ac59"
                     });
                 }
             },
@@ -1218,10 +1253,13 @@ PV.Cliente = (function () {
                 actualizarBadgeDigemid();
 
                 Swal.fire({
-                    type: "error",
-                    title: "Error en Consulta DIGEMID",
-                    text: errDetail,
-                    confirmButtonColor: "#1ab394"
+                    type: "warning",
+                    title: "Servicio DIGEMID No Disponible (Offline)",
+                    html: "<p>No se pudo conectar con el servicio de DIGEMID:</p>" +
+                          "<p class='text-danger font-bold'><small>" + PV.esc(errDetail) + "</small></p>" +
+                          "<p class='mb-0'>El sistema ha pasado a <strong>Modo Offline</strong>. Puede guardar la venta en <strong>Modo de Contingencia</strong> (Pendiente de regularización).</p>",
+                    confirmButtonText: "Entendido",
+                    confirmButtonColor: "#f8ac59"
                 });
             }
         });

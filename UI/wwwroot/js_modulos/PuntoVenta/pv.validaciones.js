@@ -801,10 +801,75 @@ PV.Validaciones = (function () {
 
         if (docCliente.length === 11 && !esGrupoExcluidoDigemid) {
             const captura = PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function" ? PV.Cliente.obtenerCapturaActual() : null;
-            const esContingenciaPrevia = captura && (captura.requiereRegularizacion === true || (captura.estadoServicioDigemid && String(captura.estadoServicioDigemid).toUpperCase() === "CONTINGENCIA"));
-            const tieneCaptura = esContingenciaPrevia || (captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0)));
+            const estadoServicio = PV.Cliente && typeof PV.Cliente.obtenerEstadoServicio === "function" ? PV.Cliente.obtenerEstadoServicio() : null;
+            const esServicioOffline = estadoServicio && estadoServicio.disponible === false;
 
-            if (tieneCaptura) {
+            const esContingenciaPrevia = captura && (captura.requiereRegularizacion === true || (captura.estadoServicioDigemid && String(captura.estadoServicioDigemid).toUpperCase() === "CONTINGENCIA"));
+            const tieneImagenReal = captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0));
+
+            // Verificar si la captura (o consulta) es del día de hoy
+            let esMismoDia = false;
+            if (captura) {
+                const rawFecha = captura.fechaCaptura || captura.FECHA_CAPTURA || captura.fechaConsulta || captura.FECHA_CONSULTA;
+                if (rawFecha) {
+                    const dCaptura = new Date(rawFecha);
+                    const dHoy = new Date();
+                    esMismoDia = !isNaN(dCaptura.getTime()) &&
+                        dCaptura.getFullYear() === dHoy.getFullYear() &&
+                        dCaptura.getMonth() === dHoy.getMonth() &&
+                        dCaptura.getDate() === dHoy.getDate();
+                }
+            }
+
+            // CASO 1: Viene con contingencia previa (ej. guardada ayer sin servicio)
+            if (esContingenciaPrevia) {
+                if (esServicioOffline) {
+                    // Sigue sin haber servicio hoy: se permite guardar manteniendo la contingencia
+                    captura.fechaConsulta = (estadoServicio && estadoServicio.fechaConsulta) ? estadoServicio.fechaConsulta : new Date().toISOString();
+                    captura.fechaCaptura = new Date().toISOString();
+                    captura.observacion = (estadoServicio && estadoServicio.motivo) ? estadoServicio.motivo : "Continuación en contingencia por indisponibilidad de DIGEMID";
+                    PV.Cliente.fijarCapturaActual(captura);
+                } else if (estadoServicio && estadoServicio.disponible === true) {
+                    // Hoy sí hay servicio: solicitar que capture la constancia para regularizar antes de guardar
+                    Swal.fire({
+                        type: "info",
+                        title: "Regularizar DIGEMID",
+                        text: "El servicio DIGEMID se encuentra disponible hoy. Por favor realice la consulta y capture la constancia para regularizar la venta.",
+                        confirmButtonText: "Consultar DIGEMID Ahora",
+                        confirmButtonColor: "#1ab394"
+                    }).then(function () {
+                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
+                            PV.Cliente.consultarDigemid();
+                        }
+                    });
+                    return;
+                } else {
+                    // Aún no ha verificado el servicio hoy: preguntar si desea consultar para regularizar o continuar en contingencia
+                    const resultPregunta = await Swal.fire({
+                        type: "warning",
+                        title: "Constancia DIGEMID Pendiente",
+                        html: "La orden se encuentra en <strong>modo de contingencia</strong> de una fecha anterior.<br><br>¿Desea consultar el servicio DIGEMID ahora para intentar regularizarla, o continuar guardando en contingencia?",
+                        showCancelButton: true,
+                        confirmButtonText: "Consultar DIGEMID Ahora",
+                        cancelButtonText: "Continuar en Contingencia",
+                        confirmButtonColor: "#1ab394",
+                        cancelButtonColor: "#f8ac59"
+                    });
+
+                    if (resultPregunta.value) {
+                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
+                            PV.Cliente.consultarDigemid();
+                        }
+                        return;
+                    }
+                    // Si eligió continuar en contingencia, permitir guardar
+                    captura.fechaConsulta = new Date().toISOString();
+                    captura.fechaCaptura = new Date().toISOString();
+                    PV.Cliente.fijarCapturaActual(captura);
+                }
+            }
+            // CASO 2: Tiene imagen (creada ayer con imagen, o capturada hoy)
+            else if (tieneImagenReal) {
                 // Validación 1: El RUC de la captura debe coincidir con el cliente actual
                 const rucCaptura = (captura.licTradNum || captura.LICTRADNUM || "").trim().replace(/\D/g, "");
                 if (rucCaptura && rucCaptura !== docCliente) {
@@ -823,35 +888,60 @@ PV.Validaciones = (function () {
                 }
 
                 // Validación 2: Regla de Frescura (Mismo día calendario)
-                const rawFecha = captura.fechaCaptura || captura.FECHA_CAPTURA || captura.fechaConsulta || captura.FECHA_CONSULTA;
-                let esMismoDia = false;
-                if (rawFecha) {
-                    const dCaptura = new Date(rawFecha);
-                    const dHoy = new Date();
-                    esMismoDia = !isNaN(dCaptura.getTime()) &&
-                        dCaptura.getFullYear() === dHoy.getFullYear() &&
-                        dCaptura.getMonth() === dHoy.getMonth() &&
-                        dCaptura.getDate() === dHoy.getDate();
-                }
-
                 if (!esMismoDia) {
-                    Swal.fire({
-                        type: "warning",
-                        title: "Constancia DIGEMID Vencida",
-                        text: "La captura de DIGEMID corresponde a una fecha anterior. Por normativa, debe volver a consultar y capturar la constancia DIGEMID del día de hoy antes de guardar la venta.",
-                        confirmButtonText: "Consultar DIGEMID Ahora",
-                        confirmButtonColor: "#1ab394"
-                    }).then(function () {
-                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
-                            PV.Cliente.consultarDigemid();
+                    if (esServicioOffline) {
+                        // Intentó consultar hoy pero DIGEMID está offline: permitir guardar en contingencia
+                        const resultContingencia = await Swal.fire({
+                            type: "warning",
+                            title: "Modo de Contingencia DIGEMID",
+                            html: "La constancia DIGEMID anterior es de una fecha previa y el portal oficial se encuentra <strong>fuera de servicio (Offline)</strong> hoy.<br><small class='text-danger font-bold'>" + PV.esc(estadoServicio.motivo || "Servicio no disponible") + "</small><br><br>¿Desea registrar la venta en <strong>modo de contingencia</strong>? La venta quedará guardada como <strong>Pendiente de Regularización</strong> de DIGEMID.",
+                            showCancelButton: true,
+                            confirmButtonText: "Sí, guardar en contingencia",
+                            cancelButtonText: "Cancelar y reintentar",
+                            confirmButtonColor: "#f8ac59",
+                            cancelButtonColor: "#6c757d"
+                        });
+
+                        if (!resultContingencia.value) {
+                            return;
                         }
-                    });
-                    return;
+
+                        // Establecer captura en contingencia
+                        PV.Cliente.fijarCapturaActual({
+                            docEntry: parseInt($("#hdfDocEntry").val()) || 0,
+                            cardCode: ($("#txtClienteCodigo").val() || "").trim(),
+                            cardName: ($("#txtClienteNombre").val() || "").trim(),
+                            licTradNum: docCliente,
+                            fechaConsulta: estadoServicio.fechaConsulta || new Date().toISOString(),
+                            fechaCaptura: new Date().toISOString(),
+                            nombreArchivo: "",
+                            imagenBase64: "",
+                            estadoServicioDigemid: "CONTINGENCIA",
+                            tieneDataDigemid: false,
+                            establecimientoJson: "",
+                            requiereRegularizacion: true,
+                            observacion: estadoServicio.motivo || "Grabado en contingencia por indisponibilidad de DIGEMID"
+                        });
+                    } else {
+                        // Aún no consulta o servicio disponible: pedir consultar para hoy
+                        Swal.fire({
+                            type: "warning",
+                            title: "Constancia DIGEMID Vencida",
+                            text: "La captura de DIGEMID corresponde a una fecha anterior. Por normativa, debe volver a consultar y capturar la constancia DIGEMID del día de hoy antes de guardar la venta.",
+                            confirmButtonText: "Consultar DIGEMID Ahora",
+                            confirmButtonColor: "#1ab394"
+                        }).then(function () {
+                            if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
+                                PV.Cliente.consultarDigemid();
+                            }
+                        });
+                        return;
+                    }
                 }
-            } else {
-                // No hay captura: verificar si el servicio falló o está caído para permitir modo de contingencia
-                const estadoServicio = PV.Cliente && typeof PV.Cliente.obtenerEstadoServicio === "function" ? PV.Cliente.obtenerEstadoServicio() : null;
-                if (estadoServicio && estadoServicio.disponible === false) {
+            }
+            // CASO 3: Sin captura alguna (nueva venta)
+            else {
+                if (esServicioOffline) {
                     const resultContingencia = await Swal.fire({
                         type: "warning",
                         title: "Modo de Contingencia DIGEMID",
@@ -860,7 +950,7 @@ PV.Validaciones = (function () {
                         confirmButtonText: "Sí, guardar en contingencia",
                         cancelButtonText: "Cancelar y reintentar",
                         confirmButtonColor: "#f8ac59",
-                        cancelButtonColor: "#d33"
+                        cancelButtonColor: "#6c757d"
                     });
 
                     if (!resultContingencia.value) {
