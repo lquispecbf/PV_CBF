@@ -549,6 +549,8 @@ PV.Cliente = (function () {
                         const totalOrig = Number(item.TOTAL || 0);
                         const enUso = debeValidar && (item.EN_USO === true || item.en_uso === true);
                         const ordenUso = item.DOCENTRY_ORDEN_USO || item.docentry_orden_uso || 0;
+                        const docNumSap = (item.DOCNUM_SAP_ORDEN_USO || item.docnum_sap_orden_uso || "").toString().trim();
+                        const numOrdenMostrar = docNumSap || (ordenUso ? String(ordenUso) : "");
 
                         let tooltip = `NC: ${numAtCard} | Saldo: S/ ${saldo.toFixed(2)}`;
                         let classItem = "nota-credito-item";
@@ -556,10 +558,11 @@ PV.Cliente = (function () {
                         let badgeHtml = "";
 
                         if (enUso) {
-                            tooltip += ` [EN USO en Orden N° ${ordenUso}]`;
+                            tooltip += numOrdenMostrar ? ` [EN USO en Orden SAP N° ${numOrdenMostrar}]` : ` [EN USO]`;
                             classItem += " nota-credito-bloqueada";
                             disabledAttr = 'disabled="disabled"';
-                            badgeHtml = `<span class="nota-credito-badge-bloqueada" title="En uso en orden N° ${ordenUso}">EN USO</span>`;
+                            const textoBadge = numOrdenMostrar ? `EN USO (${numOrdenMostrar})` : "EN USO";
+                            badgeHtml = `<span class="nota-credito-badge-bloqueada" title="En uso en orden ${numOrdenMostrar}">${textoBadge}</span>`;
                         }
 
                         html += `
@@ -574,7 +577,7 @@ PV.Cliente = (function () {
                                     data-total="${saldo}"
                                     data-total-orig="${totalOrig}"
                                     data-en-uso="${enUso ? "1" : "0"}"
-                                    data-orden-uso="${ordenUso}"
+                                    data-orden-uso="${numOrdenMostrar}"
                                     ${disabledAttr}
                                     id="nc_${item.DOCENTRY}">
                                 <span class="nota-credito-texto">
