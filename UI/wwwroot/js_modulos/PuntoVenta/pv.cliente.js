@@ -505,7 +505,7 @@ PV.Cliente = (function () {
                 .filter(x => x && x.trim() !== "")
                 .join("-");
         }
-    function cargarNotasCreditoCliente(codigoCliente, onComplete, validarEnUso) {
+    function cargarNotasCreditoCliente(codigoCliente, onComplete, validarEnUso, docEntryOverride) {
             limpiarNotasCreditoCliente();
 
             if (!codigoCliente) { if (typeof onComplete === "function") onComplete(); return; }
@@ -516,9 +516,11 @@ PV.Cliente = (function () {
             }
 
             var esModoLectura = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
-            var debeValidar = (validarEnUso !== undefined) ? !!validarEnUso : !esModoLectura;
+            var debeValidar = (validarEnUso !== undefined) ? !!validarEnUso : true;
 
-            var docEntryPv = parseInt($("#hdfDocEntry").val()) || 0;
+            var docEntryPv = (docEntryOverride !== undefined && docEntryOverride !== null)
+                ? (parseInt(docEntryOverride, 10) || 0)
+                : (parseInt($("#hdfDocEntry").val(), 10) || 0);
 
             _peticionesActivas.notasCredito = $.ajax({
                 url: "/PuntoVenta/Buscar_NotasCreditoCliente",
