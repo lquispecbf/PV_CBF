@@ -802,7 +802,9 @@ PV.Validaciones = (function () {
         if (docCliente.length === 11 && !esGrupoExcluidoDigemid) {
             const captura = PV.Cliente && typeof PV.Cliente.obtenerCapturaActual === "function" ? PV.Cliente.obtenerCapturaActual() : null;
             const estadoServicio = PV.Cliente && typeof PV.Cliente.obtenerEstadoServicio === "function" ? PV.Cliente.obtenerEstadoServicio() : null;
-            const esServicioOffline = estadoServicio && estadoServicio.disponible === false;
+            const servicioVerificadoHoy = Boolean(estadoServicio && estadoServicio.fechaConsulta);
+            const esServicioOffline = servicioVerificadoHoy && estadoServicio.disponible === false;
+            const esServicioDisponible = servicioVerificadoHoy && estadoServicio.disponible === true;
 
             const esContingenciaPrevia = captura && (captura.requiereRegularizacion === true || (captura.estadoServicioDigemid && String(captura.estadoServicioDigemid).toUpperCase() === "CONTINGENCIA"));
             const tieneImagenReal = captura && (captura.imagenBase64 || captura.idDigemidPv > 0 || (captura.nombreArchivo && captura.nombreArchivo.length > 0));
@@ -823,49 +825,51 @@ PV.Validaciones = (function () {
 
             // CASO 1: Viene con contingencia previa (ej. guardada ayer sin servicio)
             if (esContingenciaPrevia) {
-                if (esServicioOffline) {
-                    // Sigue sin haber servicio hoy: se permite guardar manteniendo la contingencia
-                    captura.fechaConsulta = (estadoServicio && estadoServicio.fechaConsulta) ? estadoServicio.fechaConsulta : new Date().toISOString();
+                let esOffline = esServicioOffline;
+                let esDisponible = esServicioDisponible;
+
+                // Si hoy todavía no se ha verificado el servicio, consultarlo automáticamente
+                if (!servicioVerificadoHoy) {
+                    const resConsulta = await PV.Cliente.consultarDigemidAsync(docCliente);
+                    if (resConsulta && resConsulta.success) {
+                        esDisponible = true;
+                        esOffline = false;
+                    } else {
+                        esOffline = true;
+                        esDisponible = false;
+                    }
+                }
+
+                if (esOffline) {
+                    // Sigue sin haber servicio hoy: se vuelve a marcar como contingencia automáticamente y se permite guardar
+                    const estadoActual = (PV.Cliente && typeof PV.Cliente.obtenerEstadoServicio === "function" ? PV.Cliente.obtenerEstadoServicio() : null) || {};
+                    const motivoOffline = estadoActual.motivo || "Continuación en contingencia por indisponibilidad de DIGEMID";
+                    captura.fechaConsulta = estadoActual.fechaConsulta || new Date().toISOString();
                     captura.fechaCaptura = new Date().toISOString();
-                    captura.observacion = (estadoServicio && estadoServicio.motivo) ? estadoServicio.motivo : "Continuación en contingencia por indisponibilidad de DIGEMID";
+                    captura.estadoServicioDigemid = "CONTINGENCIA";
+                    captura.requiereRegularizacion = true;
+                    captura.observacion = motivoOffline;
                     PV.Cliente.fijarCapturaActual(captura);
-                } else if (estadoServicio && estadoServicio.disponible === true) {
-                    // Hoy sí hay servicio: solicitar que capture la constancia para regularizar antes de guardar
+
+                    await Swal.fire({
+                        type: "warning",
+                        title: "Modo de Contingencia DIGEMID",
+                        html: "<p>El servicio oficial DIGEMID se encuentra fuera de servicio hoy también.</p>" +
+                              "<p class='text-danger font-bold'><small>" + PV.esc(motivoOffline) + "</small></p>" +
+                              "<p class='mb-0'>La orden continuará registrada en <strong>Modo de Contingencia</strong> (Pendiente de regularización) para proceder con el guardado.</p>",
+                        confirmButtonText: "Continuar y Guardar",
+                        confirmButtonColor: "#f8ac59"
+                    });
+                } else if (esDisponible) {
+                    // Hoy sí hay servicio: ya se abrió el modal con los resultados para que capture la constancia
                     Swal.fire({
                         type: "info",
                         title: "Regularizar DIGEMID",
-                        text: "El servicio DIGEMID se encuentra disponible hoy. Por favor realice la consulta y capture la constancia para regularizar la venta.",
-                        confirmButtonText: "Consultar DIGEMID Ahora",
+                        text: "El servicio DIGEMID se encuentra disponible hoy. Por favor capture la constancia en el visor para regularizar la orden antes de guardar la venta.",
+                        confirmButtonText: "Entendido",
                         confirmButtonColor: "#1ab394"
-                    }).then(function () {
-                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
-                            PV.Cliente.consultarDigemid();
-                        }
                     });
                     return;
-                } else {
-                    // Aún no ha verificado el servicio hoy: preguntar si desea consultar para regularizar o continuar en contingencia
-                    const resultPregunta = await Swal.fire({
-                        type: "warning",
-                        title: "Constancia DIGEMID Pendiente",
-                        html: "La orden se encuentra en <strong>modo de contingencia</strong> de una fecha anterior.<br><br>¿Desea consultar el servicio DIGEMID ahora para intentar regularizarla, o continuar guardando en contingencia?",
-                        showCancelButton: true,
-                        confirmButtonText: "Consultar DIGEMID Ahora",
-                        cancelButtonText: "Continuar en Contingencia",
-                        confirmButtonColor: "#1ab394",
-                        cancelButtonColor: "#f8ac59"
-                    });
-
-                    if (resultPregunta.value) {
-                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
-                            PV.Cliente.consultarDigemid();
-                        }
-                        return;
-                    }
-                    // Si eligió continuar en contingencia, permitir guardar
-                    captura.fechaConsulta = new Date().toISOString();
-                    captura.fechaCaptura = new Date().toISOString();
-                    PV.Cliente.fijarCapturaActual(captura);
                 }
             }
             // CASO 2: Tiene imagen (creada ayer con imagen, o capturada hoy)
@@ -889,12 +893,29 @@ PV.Validaciones = (function () {
 
                 // Validación 2: Regla de Frescura (Mismo día calendario)
                 if (!esMismoDia) {
-                    if (esServicioOffline) {
+                    let esOffline = esServicioOffline;
+                    let esDisponible = esServicioDisponible;
+
+                    // Si hoy no se ha verificado el servicio, consultarlo automáticamente
+                    if (!servicioVerificadoHoy) {
+                        const resConsulta = await PV.Cliente.consultarDigemidAsync(docCliente);
+                        if (resConsulta && resConsulta.success) {
+                            esDisponible = true;
+                            esOffline = false;
+                        } else {
+                            esOffline = true;
+                            esDisponible = false;
+                        }
+                    }
+
+                    if (esOffline) {
                         // Intentó consultar hoy pero DIGEMID está offline: permitir guardar en contingencia
+                        const estadoActual = (PV.Cliente && typeof PV.Cliente.obtenerEstadoServicio === "function" ? PV.Cliente.obtenerEstadoServicio() : null) || {};
+                        const motivoOffline = estadoActual.motivo || "Servicio no disponible";
                         const resultContingencia = await Swal.fire({
                             type: "warning",
                             title: "Modo de Contingencia DIGEMID",
-                            html: "La constancia DIGEMID anterior es de una fecha previa y el portal oficial se encuentra <strong>fuera de servicio (Offline)</strong> hoy.<br><small class='text-danger font-bold'>" + PV.esc(estadoServicio.motivo || "Servicio no disponible") + "</small><br><br>¿Desea registrar la venta en <strong>modo de contingencia</strong>? La venta quedará guardada como <strong>Pendiente de Regularización</strong> de DIGEMID.",
+                            html: "La constancia DIGEMID anterior es de una fecha previa y el portal oficial se encuentra <strong>fuera de servicio (Offline)</strong> hoy.<br><small class='text-danger font-bold'>" + PV.esc(motivoOffline) + "</small><br><br>¿Desea registrar la venta en <strong>modo de contingencia</strong>? La venta quedará guardada como <strong>Pendiente de Regularización</strong> de DIGEMID.",
                             showCancelButton: true,
                             confirmButtonText: "Sí, guardar en contingencia",
                             cancelButtonText: "Cancelar y reintentar",
@@ -912,7 +933,7 @@ PV.Validaciones = (function () {
                             cardCode: ($("#txtClienteCodigo").val() || "").trim(),
                             cardName: ($("#txtClienteNombre").val() || "").trim(),
                             licTradNum: docCliente,
-                            fechaConsulta: estadoServicio.fechaConsulta || new Date().toISOString(),
+                            fechaConsulta: estadoActual.fechaConsulta || new Date().toISOString(),
                             fechaCaptura: new Date().toISOString(),
                             nombreArchivo: "",
                             imagenBase64: "",
@@ -920,20 +941,15 @@ PV.Validaciones = (function () {
                             tieneDataDigemid: false,
                             establecimientoJson: "",
                             requiereRegularizacion: true,
-                            observacion: estadoServicio.motivo || "Grabado en contingencia por indisponibilidad de DIGEMID"
+                            observacion: motivoOffline
                         });
-                    } else {
-                        // Aún no consulta o servicio disponible: pedir consultar para hoy
+                    } else if (esDisponible) {
                         Swal.fire({
-                            type: "warning",
-                            title: "Constancia DIGEMID Vencida",
-                            text: "La captura de DIGEMID corresponde a una fecha anterior. Por normativa, debe volver a consultar y capturar la constancia DIGEMID del día de hoy antes de guardar la venta.",
-                            confirmButtonText: "Consultar DIGEMID Ahora",
+                            type: "info",
+                            title: "Captura DIGEMID Requerida",
+                            text: "Por normativa, debe capturar la constancia DIGEMID del día de hoy. Se ha abierto la consulta para que pueda capturar la imagen.",
+                            confirmButtonText: "Entendido",
                             confirmButtonColor: "#1ab394"
-                        }).then(function () {
-                            if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
-                                PV.Cliente.consultarDigemid();
-                            }
                         });
                         return;
                     }
@@ -941,11 +957,27 @@ PV.Validaciones = (function () {
             }
             // CASO 3: Sin captura alguna (nueva venta)
             else {
-                if (esServicioOffline) {
+                let esOffline = esServicioOffline;
+                let esDisponible = esServicioDisponible;
+
+                if (!servicioVerificadoHoy) {
+                    const resConsulta = await PV.Cliente.consultarDigemidAsync(docCliente);
+                    if (resConsulta && resConsulta.success) {
+                        esDisponible = true;
+                        esOffline = false;
+                    } else {
+                        esOffline = true;
+                        esDisponible = false;
+                    }
+                }
+
+                if (esOffline) {
+                    const estadoActual = (PV.Cliente && typeof PV.Cliente.obtenerEstadoServicio === "function" ? PV.Cliente.obtenerEstadoServicio() : null) || {};
+                    const motivoOffline = estadoActual.motivo || "Servicio no disponible o bloqueado temporalmente";
                     const resultContingencia = await Swal.fire({
                         type: "warning",
                         title: "Modo de Contingencia DIGEMID",
-                        html: "El servicio de DIGEMID no estuvo disponible al momento de la consulta.<br><small class='text-danger font-bold'>" + PV.esc(estadoServicio.motivo || "Servicio no disponible o bloqueado temporalmente") + "</small><br><br>¿Desea registrar la venta en <strong>modo de contingencia</strong>? La venta quedará guardada como <strong>Pendiente de Regularización</strong> de DIGEMID.",
+                        html: "El servicio de DIGEMID no estuvo disponible al momento de la consulta.<br><small class='text-danger font-bold'>" + PV.esc(motivoOffline) + "</small><br><br>¿Desea registrar la venta en <strong>modo de contingencia</strong>? La venta quedará guardada como <strong>Pendiente de Regularización</strong> de DIGEMID.",
                         showCancelButton: true,
                         confirmButtonText: "Sí, guardar en contingencia",
                         cancelButtonText: "Cancelar y reintentar",
@@ -963,7 +995,7 @@ PV.Validaciones = (function () {
                         cardCode: ($("#txtClienteCodigo").val() || "").trim(),
                         cardName: ($("#txtClienteNombre").val() || "").trim(),
                         licTradNum: docCliente,
-                        fechaConsulta: estadoServicio.fechaConsulta || new Date().toISOString(),
+                        fechaConsulta: estadoActual.fechaConsulta || new Date().toISOString(),
                         fechaCaptura: new Date().toISOString(),
                         nombreArchivo: "",
                         imagenBase64: "",
@@ -971,19 +1003,15 @@ PV.Validaciones = (function () {
                         tieneDataDigemid: false,
                         establecimientoJson: "",
                         requiereRegularizacion: true,
-                        observacion: estadoServicio.motivo || "Grabado en contingencia por indisponibilidad de DIGEMID"
+                        observacion: motivoOffline
                     });
-                } else {
+                } else if (esDisponible) {
                     Swal.fire({
-                        type: "warning",
+                        type: "info",
                         title: "Constancia DIGEMID Requerida",
-                        text: "Para clientes con RUC es obligatorio consultar y capturar la información del establecimiento en DIGEMID antes de registrar la venta.",
-                        confirmButtonText: "Consultar DIGEMID Ahora",
+                        text: "Para clientes con RUC es obligatorio capturar la información del establecimiento en DIGEMID antes de registrar la venta. Se ha abierto la consulta para realizar la captura.",
+                        confirmButtonText: "Entendido",
                         confirmButtonColor: "#1ab394"
-                    }).then(function () {
-                        if (PV.Cliente && typeof PV.Cliente.consultarDigemid === "function") {
-                            PV.Cliente.consultarDigemid();
-                        }
                     });
                     return;
                 }
