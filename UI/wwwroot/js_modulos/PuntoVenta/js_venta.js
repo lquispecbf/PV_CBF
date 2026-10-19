@@ -3229,10 +3229,10 @@ function cargarVentaReadOnly(resp) {
         resp.INVOICE_ADDRESS
     );
 
-    // Cargar notas de crédito sin validar si fueron usadas en otras órdenes (modo sólo lectura)
+    // Cargar notas de crédito validando si fueron usadas en otras órdenes (para marcarlas en rojo)
     PV.Cliente.cargarNotasCreditoCliente(resp.CARDCODE, function () {
         marcarNotasCreditoGuardadas(resp);
-    }, false);
+    }, true, resp.DOCENTRY);
 
     // Vendedor
     if (resp.SLPCODE) {

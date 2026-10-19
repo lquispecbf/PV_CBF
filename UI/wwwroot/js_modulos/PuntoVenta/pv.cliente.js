@@ -171,8 +171,21 @@ PV.Cliente = (function () {
             const ruc = ($("#txtClienteRuc").val() || "").trim();
             const razonSocial = ($("#txtClienteNombre").val() || "").trim();
 
-            // Si la orden ya tiene constancia DIGEMID capturada/cargada (y no requiere regularización)
-            if (_digemidCapturaActual && (_digemidCapturaActual.nombreArchivo || _digemidCapturaActual.imagenBase64) && !_digemidCapturaActual.requiereRegularizacion) {
+            // Si es modo lectura O tiene captura válida de hoy (y no requiere regularización), mostrar visor
+            let esMismoDia = false;
+            if (_digemidCapturaActual) {
+                const rawFecha = _digemidCapturaActual.fechaCaptura || _digemidCapturaActual.FECHA_CAPTURA || _digemidCapturaActual.fechaConsulta || _digemidCapturaActual.FECHA_CONSULTA;
+                if (rawFecha) {
+                    const dCap = parsearFechaLocal(rawFecha);
+                    const dHoy = new Date();
+                    esMismoDia = !isNaN(dCap.getTime()) &&
+                        dCap.getFullYear() === dHoy.getFullYear() &&
+                        dCap.getMonth() === dHoy.getMonth() &&
+                        dCap.getDate() === dHoy.getDate();
+                }
+            }
+
+            if (_digemidCapturaActual && (_digemidCapturaActual.nombreArchivo || _digemidCapturaActual.imagenBase64) && !_digemidCapturaActual.requiereRegularizacion && (esModoLectura || esMismoDia)) {
                 mostrarVisorImagenDigemid(_digemidCapturaActual);
                 return;
             }
@@ -505,7 +518,7 @@ PV.Cliente = (function () {
                 .filter(x => x && x.trim() !== "")
                 .join("-");
         }
-    function cargarNotasCreditoCliente(codigoCliente, onComplete, validarEnUso) {
+    function cargarNotasCreditoCliente(codigoCliente, onComplete, validarEnUso, docEntryOverride) {
             limpiarNotasCreditoCliente();
 
             if (!codigoCliente) { if (typeof onComplete === "function") onComplete(); return; }
@@ -516,9 +529,11 @@ PV.Cliente = (function () {
             }
 
             var esModoLectura = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
-            var debeValidar = (validarEnUso !== undefined) ? !!validarEnUso : !esModoLectura;
+            var debeValidar = (validarEnUso !== undefined) ? !!validarEnUso : true;
 
-            var docEntryPv = parseInt($("#hdfDocEntry").val()) || 0;
+            var docEntryPv = (docEntryOverride !== undefined && docEntryOverride !== null)
+                ? (parseInt(docEntryOverride, 10) || 0)
+                : (parseInt($("#hdfDocEntry").val(), 10) || 0);
 
             _peticionesActivas.notasCredito = $.ajax({
                 url: "/PuntoVenta/Buscar_NotasCreditoCliente",
@@ -547,6 +562,8 @@ PV.Cliente = (function () {
                         const totalOrig = Number(item.TOTAL || 0);
                         const enUso = debeValidar && (item.EN_USO === true || item.en_uso === true);
                         const ordenUso = item.DOCENTRY_ORDEN_USO || item.docentry_orden_uso || 0;
+                        const docNumSap = (item.DOCNUM_SAP_ORDEN_USO || item.docnum_sap_orden_uso || "").toString().trim();
+                        const numOrdenMostrar = docNumSap || (ordenUso ? String(ordenUso) : "");
 
                         let tooltip = `NC: ${numAtCard} | Saldo: S/ ${saldo.toFixed(2)}`;
                         let classItem = "nota-credito-item";
@@ -554,10 +571,11 @@ PV.Cliente = (function () {
                         let badgeHtml = "";
 
                         if (enUso) {
-                            tooltip += ` [EN USO en Orden N° ${ordenUso}]`;
+                            tooltip += numOrdenMostrar ? ` [EN USO en Orden SAP N° ${numOrdenMostrar}]` : ` [EN USO]`;
                             classItem += " nota-credito-bloqueada";
                             disabledAttr = 'disabled="disabled"';
-                            badgeHtml = `<span class="nota-credito-badge-bloqueada" title="En uso en orden N° ${ordenUso}">EN USO</span>`;
+                            const textoBadge = numOrdenMostrar ? `EN USO (${numOrdenMostrar})` : "EN USO";
+                            badgeHtml = `<span class="nota-credito-badge-bloqueada" title="En uso en orden ${numOrdenMostrar}">${textoBadge}</span>`;
                         }
 
                         html += `
@@ -572,7 +590,7 @@ PV.Cliente = (function () {
                                     data-total="${saldo}"
                                     data-total-orig="${totalOrig}"
                                     data-en-uso="${enUso ? "1" : "0"}"
-                                    data-orden-uso="${ordenUso}"
+                                    data-orden-uso="${numOrdenMostrar}"
                                     ${disabledAttr}
                                     id="nc_${item.DOCENTRY}">
                                 <span class="nota-credito-texto">
@@ -963,9 +981,28 @@ PV.Cliente = (function () {
         var tieneCaptura = _digemidCapturaActual && (_digemidCapturaActual.imagenBase64 || _digemidCapturaActual.nombreArchivo);
         var requiereReg = _digemidCapturaActual && _digemidCapturaActual.requiereRegularizacion;
         var esExcluido = esGrupoExcluidoDigemid();
+        var esModoLectura = PV.Detalle && typeof PV.Detalle.isReadOnly === "function" && PV.Detalle.isReadOnly();
 
-        if (tieneCaptura && !requiereReg) {
-            var fc = parsearFechaLocal(_digemidCapturaActual.fechaCaptura);
+        // Verificar frescura de la captura (mismo día calendario)
+        var esMismoDia = false;
+        if (_digemidCapturaActual) {
+            var rawF = _digemidCapturaActual.fechaCaptura || _digemidCapturaActual.FECHA_CAPTURA || _digemidCapturaActual.fechaConsulta || _digemidCapturaActual.FECHA_CONSULTA;
+            if (rawF) {
+                var dCap = parsearFechaLocal(rawF);
+                var dHoy = new Date();
+                esMismoDia = !isNaN(dCap.getTime()) &&
+                    dCap.getFullYear() === dHoy.getFullYear() &&
+                    dCap.getMonth() === dHoy.getMonth() &&
+                    dCap.getDate() === dHoy.getDate();
+            }
+        }
+
+        if (_estadoServicioDigemid && !_estadoServicioDigemid.disponible) {
+            $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
+                .html('<i class="fa fa-exclamation-triangle mr-1"></i> DIGEMID (Offline)')
+                .attr("title", "Servicio DIGEMID fuera de servicio (" + (_estadoServicioDigemid.motivo || "") + "). Clic para reintentar.");
+        } else if (tieneCaptura && !requiereReg && (esModoLectura || esMismoDia)) {
+            var fc = parsearFechaLocal(_digemidCapturaActual.fechaCaptura || _digemidCapturaActual.FECHA_CAPTURA);
             var fcFmt = ("0" + fc.getHours()).slice(-2) + ":" + ("0" + fc.getMinutes()).slice(-2);
             $btn.removeClass("btn-info btn-warning btn-danger btn-secondary").addClass("btn-success")
                 .html('<i class="fa fa-check-circle mr-1"></i> DIGEMID (' + fcFmt + ')')
@@ -974,10 +1011,10 @@ PV.Cliente = (function () {
             $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
                 .html('<i class="fa fa-exclamation-circle mr-1"></i> DIGEMID (Pendiente)')
                 .attr("title", "Constancia DIGEMID pendiente de regularización. Clic para regularizar.");
-        } else if (_estadoServicioDigemid && !_estadoServicioDigemid.disponible) {
+        } else if (tieneCaptura && !esMismoDia && !esModoLectura) {
             $btn.removeClass("btn-info btn-success btn-danger btn-secondary").addClass("btn-warning")
-                .html('<i class="fa fa-exclamation-triangle mr-1"></i> DIGEMID (Offline)')
-                .attr("title", "Servicio DIGEMID fuera de servicio (" + (_estadoServicioDigemid.motivo || "") + "). Clic para reintentar.");
+                .html('<i class="fa fa-exclamation-circle mr-1"></i> DIGEMID (Vencido)')
+                .attr("title", "Constancia DIGEMID de fecha anterior. Debe volver a consultar para el día de hoy.");
         } else if (esExcluido) {
             $btn.removeClass("btn-success btn-warning btn-danger btn-secondary").addClass("btn-info")
                 .html('<i class="fa fa-hospital-alt mr-1"></i> DIGEMID (Opcional)')
@@ -1076,149 +1113,166 @@ PV.Cliente = (function () {
         actualizarBadgeDigemid();
     }
 
-    function consultarDigemid(ruc, razonSocial) {
-        const codigoCliente = ($("#txtClienteCodigo").val() || "").trim();
-        ruc = (ruc || $("#txtClienteRuc").val() || "").trim();
-        razonSocial = (razonSocial || $("#txtClienteNombre").val() || "").trim();
+    function consultarDigemidAsync(ruc, razonSocial) {
+        return new Promise(function (resolve) {
+            const codigoCliente = ($("#txtClienteCodigo").val() || "").trim();
+            ruc = (ruc || $("#txtClienteRuc").val() || "").trim();
+            razonSocial = (razonSocial || $("#txtClienteNombre").val() || "").trim();
 
-        if (!codigoCliente || !ruc) {
-            Swal.fire({
-                type: "warning",
-                title: "Cliente no seleccionado",
-                text: "Por favor seleccione un cliente primero para realizar la consulta en DIGEMID.",
-                confirmButtonColor: "#1ab394"
-            });
-            return;
-        }
-
-        if (ruc.length !== 11) {
-            Swal.fire({
-                type: "warning",
-                title: "RUC requerido para DIGEMID",
-                text: "El cliente seleccionado cuenta con " + (ruc.length === 8 ? "DNI (" + ruc + ")" : "documento (" + ruc + ")") + ". El portal oficial de DIGEMID requiere un número de RUC de 11 dígitos para consultar el establecimiento farmacéutico.",
-                confirmButtonColor: "#1ab394"
-            });
-            return;
-        }
-
-        Swal.fire({
-            title: "Consultando DIGEMID...",
-            html: "Obteniendo información del establecimiento farmacéutico para el RUC <b>" + PV.esc(ruc) + "</b>",
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            onBeforeOpen: function () {
-                Swal.showLoading();
-            }
-        });
-
-        $.ajax({
-            url: "/PuntoVenta/ConsultarDigemid",
-            type: "GET",
-            data: { ruc: ruc },
-            dataType: "json",
-            success: function (resp) {
-                Swal.close();
-                if (resp && (resp.success || resp.Success)) {
-                    const ahora = new Date();
-                    const ahoraLocalIso = obtenerFechaLocalIso(ahora);
-                    _estadoServicioDigemid = { disponible: true, motivo: "", fechaConsulta: ahoraLocalIso };
-                    actualizarBadgeDigemid();
-
-                    const datos = resp.establecimientos || resp.Establecimientos || resp.data || resp.Data || [];
-                    const rs = razonSocial || (datos.length > 0 ? (datos[0].razonSocial || datos[0].RazonSocial) : ($("#txtClienteNombre").val() || "-"));
-
-                    $("#lblDigemidClienteNombre").text(rs);
-                    $("#lblDigemidClienteRuc").text(ruc);
-                    $("#lblDigemidCoincidencias").text("Coincidencias: " + datos.length + " registro(s)");
-
-                    const fechaFmt = ("0" + ahora.getDate()).slice(-2) + "/" +
-                        ("0" + (ahora.getMonth() + 1)).slice(-2) + "/" +
-                        ahora.getFullYear() + " " +
-                        ("0" + ahora.getHours()).slice(-2) + ":" +
-                        ("0" + ahora.getMinutes()).slice(-2) + ":" +
-                        ("0" + ahora.getSeconds()).slice(-2);
-                    $("#lblDigemidFechaConsulta").text(fechaFmt).data("rawDate", ahoraLocalIso);
-
-                    let tbodyHtml = "";
-                    if (datos.length > 0) {
-                        datos.forEach(function (item, idx) {
-                            const itemNum = item.item || item.Item || (idx + 1);
-                            const situacion = item.situacion || item.Situacion || "";
-                            const sitUpper = situacion.trim().toUpperCase();
-                            const numReg = item.numeroRegistro || item.NumeroRegistro || "";
-                            const cat = item.categoria || item.Categoria || "";
-                            const nomCom = item.nombreComercial || item.NombreComercial || "";
-                            const razSoc = item.razonSocial || item.RazonSocial || "";
-                            const rucEst = item.ruc || item.Ruc || "";
-                            const dir = item.direccion || item.Direccion || "";
-                            const ubi = item.ubigeo || item.Ubigeo || "";
-                            const emp = item.empadronado || item.Empadronado || "NO APLICA";
-
-                            let badgeSituacion = "";
-                            if (sitUpper === "ACTIVO") {
-                                badgeSituacion = '<span class="badge" style="background-color:#1ab394; color:#ffffff; font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;"><i class="fa fa-check-circle mr-1"></i>ACTIVO</span>';
-                            } else if (sitUpper.indexOf("CIERRE") !== -1 || sitUpper.indexOf("SUSPENSION") !== -1 || sitUpper.indexOf("BAJA") !== -1 || sitUpper.indexOf("CANCELADO") !== -1 || sitUpper.indexOf("NO") !== -1) {
-                                badgeSituacion = '<span class="badge" style="background-color:#ed5565; color:#ffffff; font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;"><i class="fa fa-times-circle mr-1"></i>' + PV.esc(situacion) + '</span>';
-                            } else {
-                                badgeSituacion = '<span class="badge badge-warning" style="font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;">' + PV.esc(situacion || "DESCONOCIDO") + '</span>';
-                            }
-
-                            tbodyHtml += '<tr class="fila-digemid-item" style="cursor:pointer;">' +
-                                '<td class="text-center font-bold" style="vertical-align:middle;">' + itemNum + '</td>' +
-                                '<td class="text-center font-bold text-navy" style="vertical-align:middle;">' + PV.esc(numReg) + '</td>' +
-                                '<td class="text-center font-bold" style="vertical-align:middle;">' + PV.esc(cat) + '</td>' +
-                                '<td style="vertical-align:middle;">' + PV.esc(nomCom) + '</td>' +
-                                '<td style="vertical-align:middle;">' + PV.esc(razSoc) + '</td>' +
-                                '<td class="text-center font-bold" style="vertical-align:middle;">' + PV.esc(rucEst) + '</td>' +
-                                '<td style="vertical-align:middle;"><small>' + PV.esc(dir) + '</small></td>' +
-                                '<td style="vertical-align:middle;"><small>' + PV.esc(ubi) + '</small></td>' +
-                                '<td class="text-center" style="vertical-align:middle;">' + badgeSituacion + '</td>' +
-                                '<td class="text-center" style="vertical-align:middle;"><small class="font-bold">' + PV.esc(emp) + '</small></td>' +
-                                '</tr>';
-                        });
-                    } else {
-                        tbodyHtml = '<tr><td colspan="10" class="text-center text-muted p-4"><i class="fa fa-info-circle fa-2x mb-2 d-block text-warning"></i>No se encontraron registros de establecimientos en DIGEMID para el RUC especificado.</td></tr>';
-                    }
-
-                    $("#tblDigemidResultados tbody").html(tbodyHtml);
-                    if (datos.length === 1) {
-                        seleccionarFilaDigemid($("#tblDigemidResultados tbody tr:first")[0]);
-                    }
-                    $("#modalConsultaDigemid").modal("show");
-                } else {
-                    const msgError = (resp && (resp.error || resp.Error || resp.mensajeResumen || resp.MensajeResumen || resp.message || resp.Message)) || "Error al obtener datos de DIGEMID.";
-                    _estadoServicioDigemid = { disponible: false, motivo: msgError, fechaConsulta: new Date().toISOString() };
-                    actualizarBadgeDigemid();
-
-                    Swal.fire({
-                        type: "error",
-                        title: "Consulta DIGEMID",
-                        text: msgError,
-                        confirmButtonColor: "#1ab394"
-                    });
-                }
-            },
-            error: function (xhr) {
-                Swal.close();
-                console.error("Error al consultar DIGEMID:", xhr.responseText);
-                var errDetail = "No se pudo conectar con el servicio de DIGEMID.";
-                try {
-                    var jsonErr = JSON.parse(xhr.responseText);
-                    if (jsonErr && (jsonErr.error || jsonErr.Error || jsonErr.message || jsonErr.Message || jsonErr.mensajeResumen)) {
-                        errDetail = jsonErr.error || jsonErr.Error || jsonErr.message || jsonErr.Message || jsonErr.mensajeResumen;
-                    }
-                } catch (e) { }
-
-                _estadoServicioDigemid = { disponible: false, motivo: errDetail, fechaConsulta: new Date().toISOString() };
-                actualizarBadgeDigemid();
-
+            if (!codigoCliente || !ruc) {
                 Swal.fire({
-                    type: "error",
-                    title: "Error en Consulta DIGEMID",
-                    text: errDetail,
+                    type: "warning",
+                    title: "Cliente no seleccionado",
+                    text: "Por favor seleccione un cliente primero para realizar la consulta en DIGEMID.",
                     confirmButtonColor: "#1ab394"
                 });
+                resolve({ success: false, error: "Cliente no seleccionado" });
+                return;
             }
+
+            if (ruc.length !== 11) {
+                Swal.fire({
+                    type: "warning",
+                    title: "RUC requerido para DIGEMID",
+                    text: "El cliente seleccionado cuenta con " + (ruc.length === 8 ? "DNI (" + ruc + ")" : "documento (" + ruc + ")") + ". El portal oficial de DIGEMID requiere un número de RUC de 11 dígitos para consultar el establecimiento farmacéutico.",
+                    confirmButtonColor: "#1ab394"
+                });
+                resolve({ success: false, error: "RUC debe tener 11 dígitos" });
+                return;
+            }
+
+            Swal.fire({
+                title: "Verificando DIGEMID...",
+                html: "Consultando disponibilidad del portal oficial DIGEMID para el RUC <b>" + PV.esc(ruc) + "</b>",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                onBeforeOpen: function () {
+                    Swal.showLoading();
+                }
+            });
+
+            $.ajax({
+                url: "/PuntoVenta/ConsultarDigemid",
+                type: "GET",
+                data: { ruc: ruc },
+                dataType: "json",
+                success: function (resp) {
+                    Swal.close();
+                    if (resp && (resp.success || resp.Success)) {
+                        const ahora = new Date();
+                        const ahoraLocalIso = obtenerFechaLocalIso(ahora);
+                        _estadoServicioDigemid = { disponible: true, motivo: "", fechaConsulta: ahoraLocalIso };
+                        actualizarBadgeDigemid();
+
+                        const datos = resp.establecimientos || resp.Establecimientos || resp.data || resp.Data || [];
+                        const rs = razonSocial || (datos.length > 0 ? (datos[0].razonSocial || datos[0].RazonSocial) : ($("#txtClienteNombre").val() || "-"));
+
+                        $("#lblDigemidClienteNombre").text(rs);
+                        $("#lblDigemidClienteRuc").text(ruc);
+                        $("#lblDigemidCoincidencias").text("Coincidencias: " + datos.length + " registro(s)");
+
+                        const fechaFmt = ("0" + ahora.getDate()).slice(-2) + "/" +
+                            ("0" + (ahora.getMonth() + 1)).slice(-2) + "/" +
+                            ahora.getFullYear() + " " +
+                            ("0" + ahora.getHours()).slice(-2) + ":" +
+                            ("0" + ahora.getMinutes()).slice(-2) + ":" +
+                            ("0" + ahora.getSeconds()).slice(-2);
+                        $("#lblDigemidFechaConsulta").text(fechaFmt).data("rawDate", ahoraLocalIso);
+
+                        let tbodyHtml = "";
+                        if (datos.length > 0) {
+                            datos.forEach(function (item, idx) {
+                                const itemNum = item.item || item.Item || (idx + 1);
+                                const situacion = item.situacion || item.Situacion || "";
+                                const sitUpper = situacion.trim().toUpperCase();
+                                const numReg = item.numeroRegistro || item.NumeroRegistro || "";
+                                const cat = item.categoria || item.Categoria || "";
+                                const nomCom = item.nombreComercial || item.NombreComercial || "";
+                                const razSoc = item.razonSocial || item.RazonSocial || "";
+                                const rucEst = item.ruc || item.Ruc || "";
+                                const dir = item.direccion || item.Direccion || "";
+                                const ubi = item.ubigeo || item.Ubigeo || "";
+                                const emp = item.empadronado || item.Empadronado || "NO APLICA";
+
+                                let badgeSituacion = "";
+                                if (sitUpper === "ACTIVO") {
+                                    badgeSituacion = '<span class="badge" style="background-color:#1ab394; color:#ffffff; font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;"><i class="fa fa-check-circle mr-1"></i>ACTIVO</span>';
+                                } else if (sitUpper.indexOf("CIERRE") !== -1 || sitUpper.indexOf("SUSPENSION") !== -1 || sitUpper.indexOf("BAJA") !== -1 || sitUpper.indexOf("CANCELADO") !== -1 || sitUpper.indexOf("NO") !== -1) {
+                                    badgeSituacion = '<span class="badge" style="background-color:#ed5565; color:#ffffff; font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;"><i class="fa fa-times-circle mr-1"></i>' + PV.esc(situacion) + '</span>';
+                                } else {
+                                    badgeSituacion = '<span class="badge badge-warning" style="font-size:12px; font-weight:bold; padding:4px 8px; border-radius:4px;">' + PV.esc(situacion || "DESCONOCIDO") + '</span>';
+                                }
+
+                                tbodyHtml += '<tr class="fila-digemid-item" style="cursor:pointer;">' +
+                                    '<td class="text-center font-bold" style="vertical-align:middle;">' + itemNum + '</td>' +
+                                    '<td class="text-center font-bold text-navy" style="vertical-align:middle;">' + PV.esc(numReg) + '</td>' +
+                                    '<td class="text-center font-bold" style="vertical-align:middle;">' + PV.esc(cat) + '</td>' +
+                                    '<td style="vertical-align:middle;">' + PV.esc(nomCom) + '</td>' +
+                                    '<td style="vertical-align:middle;">' + PV.esc(razSoc) + '</td>' +
+                                    '<td class="text-center font-bold" style="vertical-align:middle;">' + PV.esc(rucEst) + '</td>' +
+                                    '<td style="vertical-align:middle;"><small>' + PV.esc(dir) + '</small></td>' +
+                                    '<td style="vertical-align:middle;"><small>' + PV.esc(ubi) + '</small></td>' +
+                                    '<td class="text-center" style="vertical-align:middle;">' + badgeSituacion + '</td>' +
+                                    '<td class="text-center" style="vertical-align:middle;"><small class="font-bold">' + PV.esc(emp) + '</small></td>' +
+                                    '</tr>';
+                            });
+                        } else {
+                            tbodyHtml = '<tr><td colspan="10" class="text-center text-muted p-4"><i class="fa fa-info-circle fa-2x mb-2 d-block text-warning"></i>No se encontraron registros de establecimientos en DIGEMID para el RUC especificado.</td></tr>';
+                        }
+
+                        $("#tblDigemidResultados tbody").html(tbodyHtml);
+                        if (datos.length === 1) {
+                            seleccionarFilaDigemid($("#tblDigemidResultados tbody tr:first")[0]);
+                        }
+                        $("#modalConsultaDigemidTitle").html('<i class="fa fa-hospital-alt mr-2"></i> Consulta de Establecimiento Farmacéutico - DIGEMID (MINSA)');
+                        $("#seccionVisorImagenDigemid").hide();
+                        $("#seccionConsultaDigemid").show();
+                        $("#btnCapturarImagenDigemid").show().html('<i class="fa fa-camera mr-1"></i> Capturar Imagen (PNG)');
+                        $("#btnRecapturarDigemid").hide();
+                        $("#btnDescargarImagenDigemid").hide();
+                        $("#modalConsultaDigemid").modal("show");
+
+                        resolve({ success: true, datos: datos });
+                    } else {
+                        const msgError = (resp && (resp.error || resp.Error || resp.mensajeResumen || resp.MensajeResumen || resp.message || resp.Message)) || "Error al obtener datos de DIGEMID.";
+                        _estadoServicioDigemid = { disponible: false, motivo: msgError, fechaConsulta: new Date().toISOString() };
+                        actualizarBadgeDigemid();
+                        resolve({ success: false, error: msgError });
+                    }
+                },
+                error: function (xhr) {
+                    Swal.close();
+                    console.error("Error al consultar DIGEMID:", xhr.responseText);
+                    var errDetail = "No se pudo conectar con el servicio de DIGEMID.";
+                    try {
+                        var jsonErr = JSON.parse(xhr.responseText);
+                        if (jsonErr && (jsonErr.error || jsonErr.Error || jsonErr.message || jsonErr.Message || jsonErr.mensajeResumen)) {
+                            errDetail = jsonErr.error || jsonErr.Error || jsonErr.message || jsonErr.Message || jsonErr.mensajeResumen;
+                        }
+                    } catch (e) { }
+
+                    _estadoServicioDigemid = { disponible: false, motivo: errDetail, fechaConsulta: new Date().toISOString() };
+                    actualizarBadgeDigemid();
+                    resolve({ success: false, error: errDetail });
+                }
+            });
+        });
+    }
+
+    function consultarDigemid(ruc, razonSocial) {
+        return consultarDigemidAsync(ruc, razonSocial).then(function (res) {
+            if (!res.success) {
+                Swal.fire({
+                    type: "warning",
+                    title: "Servicio DIGEMID No Disponible (Offline)",
+                    html: "<p>El portal de DIGEMID no respondió satisfactoriamente:</p>" +
+                          "<p class='text-danger font-bold'><small>" + PV.esc(res.error) + "</small></p>" +
+                          "<p class='mb-0'>El sistema ha pasado a <strong>Modo Offline</strong>. Puede guardar la venta en <strong>Modo de Contingencia</strong> (Pendiente de regularización).</p>",
+                    confirmButtonText: "Entendido",
+                    confirmButtonColor: "#f8ac59"
+                });
+            }
+            return res;
         });
     }
 
@@ -1554,6 +1608,7 @@ PV.Cliente = (function () {
         obtenerEstadoServicio: obtenerEstadoServicio,
         fijarEstadoServicio: fijarEstadoServicio,
         consultarDigemid: consultarDigemid,
+        consultarDigemidAsync: consultarDigemidAsync,
         capturarImagenDigemid: capturarImagenDigemid,
         cargarDigemidPorDocEntry: cargarDigemidPorDocEntry,
         bloquearBusquedaCliente: bloquearBusquedaCliente,
