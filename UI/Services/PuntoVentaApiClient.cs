@@ -36,6 +36,48 @@ namespace UI.Services
             }
         }
 
+        private void AdjuntarCabecerasAuditoriaCliente(HttpRequestMessage request)
+        {
+            try
+            {
+                var httpContext = _httpContextAccessor.HttpContext;
+                if (httpContext == null) return;
+
+                // 1. Obtener IP real del cliente (considerando si el cliente llega a través de un proxy/reverse proxy a la UI)
+                string? ipCliente = null;
+                var forwardedHeader = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(forwardedHeader))
+                {
+                    ipCliente = forwardedHeader.Split(',')[0].Trim();
+                }
+                else if (!string.IsNullOrWhiteSpace(httpContext.Request.Headers["X-Real-IP"].FirstOrDefault()))
+                {
+                    ipCliente = httpContext.Request.Headers["X-Real-IP"].FirstOrDefault()?.Trim();
+                }
+                else
+                {
+                    ipCliente = httpContext.Connection.RemoteIpAddress?.ToString();
+                }
+
+                if (!string.IsNullOrWhiteSpace(ipCliente))
+                {
+                    request.Headers.TryAddWithoutValidation("X-Forwarded-For", ipCliente);
+                    request.Headers.TryAddWithoutValidation("X-Real-IP", ipCliente);
+                }
+
+                // 2. Propagar User-Agent real del navegador del usuario
+                var userAgent = httpContext.Request.Headers["User-Agent"].ToString();
+                if (!string.IsNullOrWhiteSpace(userAgent) && !request.Headers.Contains("User-Agent"))
+                {
+                    request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
+                }
+            }
+            catch
+            {
+                // No interrumpir la llamada si no se pueden adjuntar cabeceras
+            }
+        }
+
         public async Task<bool> RenovarTokenSesionAsync()
         {
             var session = _httpContextAccessor.HttpContext?.Session;
@@ -106,6 +148,7 @@ namespace UI.Services
             {
                 Content = new StringContent(JsonConvert.SerializeObject(oUsuario), Encoding.UTF8, "application/json")
             };
+            AdjuntarCabecerasAuditoriaCliente(request);
 
             return await _httpClient.SendAsync(request);
         }
@@ -114,6 +157,7 @@ namespace UI.Services
         {
             var request = new HttpRequestMessage(HttpMethod.Post, relativeUrl);
             AdjuntarTokenAutorizacion(request);
+            AdjuntarCabecerasAuditoriaCliente(request);
 
             if (body != null)
             {
@@ -132,6 +176,7 @@ namespace UI.Services
                 {
                     var reintentarRequest = new HttpRequestMessage(HttpMethod.Post, relativeUrl);
                     AdjuntarTokenAutorizacion(reintentarRequest);
+                    AdjuntarCabecerasAuditoriaCliente(reintentarRequest);
                     if (body != null)
                     {
                         var json = JsonConvert.SerializeObject(body);
@@ -148,6 +193,7 @@ namespace UI.Services
         {
             var request = new HttpRequestMessage(HttpMethod.Get, relativeUrl);
             AdjuntarTokenAutorizacion(request);
+            AdjuntarCabecerasAuditoriaCliente(request);
 
             var response = await _httpClient.SendAsync(request);
 
@@ -160,6 +206,7 @@ namespace UI.Services
                 {
                     var reintentarRequest = new HttpRequestMessage(HttpMethod.Get, relativeUrl);
                     AdjuntarTokenAutorizacion(reintentarRequest);
+                    AdjuntarCabecerasAuditoriaCliente(reintentarRequest);
                     return await _httpClient.SendAsync(reintentarRequest);
                 }
             }
