@@ -15,10 +15,14 @@ PV.Hotkeys = (function () {
     var _lotesGuardadosFila = false;
     var _bloqueoAperturaLotes = false;
     var _bloqueoAperturaBusqueda = false;
+    var _catalogoTitularesRsCargado = false;
+    var _cargandoTitularesRs = false;
+    var _xhrBusquedaAvanzada = null;
 
     function inicializar() {
         registrarHotkeys();
         registrarEventosModales();
+        cargarTitularesRs();
     }
 
     function activarTab(tabId) {
@@ -269,6 +273,10 @@ PV.Hotkeys = (function () {
                     $("#tblBusquedaAvanzada").DataTable().destroy();
                 }
             } catch (e) { }
+            if (_xhrBusquedaAvanzada && _xhrBusquedaAvanzada.readyState !== 4) {
+                _xhrBusquedaAvanzada.abort();
+            }
+            $("body").removeClass("loading");
             $("#tblBusquedaAvanzada tbody").empty();
             $("#chkSeleccionarTodosAvanzada").prop("checked", false);
             _seleccionAvanzadaCodigos = [];
@@ -544,29 +552,46 @@ PV.Hotkeys = (function () {
 
         $("#modalBusquedaAvanzada").off("shown.bs.modal.initBusqueda").on("shown.bs.modal.initBusqueda", function () {
             _bloqueoAperturaBusqueda = false;
-            cargarTitularesRs();
+            if (!_catalogoTitularesRsCargado) {
+                cargarTitularesRs();
+            }
             $("#modalBusquedaAvanzada").removeAttr("aria-hidden").attr("aria-modal", "true");
             $("#txtFiltroDescripcion").focus();
         });
 
-        if (textoDescripcion || textoCodigo) {
+        var descTrim = (textoDescripcion || "").trim();
+        var codTrim = (textoCodigo || "").trim();
+        if (descTrim.length >= 3 || codTrim.length >= 2) {
             buscarArticulosAvanzado();
         }
     }
 
-    function cargarTitularesRs() {
+    function cargarTitularesRs(callback) {
+        if (_catalogoTitularesRsCargado) {
+            if (typeof callback === "function") callback();
+            return;
+        }
+        if (_cargandoTitularesRs) return;
+        _cargandoTitularesRs = true;
+
         var $ddl = $("#ddlFiltroTitularRs");
-        $.get("/PuntoVenta/Buscar_TitularesRs", function (data) {
-            $ddl.empty().append('<option value="">Todos</option>');
-            if (data && data.length > 0) {
-                data.forEach(function (item) {
-                    if (item && item.trim() !== "") {
-                        $ddl.append('<option value="' + item + '">' + item + '</option>');
-                    }
-                });
-            }
-            inicializarSelect2TitularRs();
-        });
+        $.get("/PuntoVenta/Buscar_TitularesRs")
+            .done(function (data) {
+                $ddl.empty().append('<option value="">Todos</option>');
+                if (data && data.length > 0) {
+                    data.forEach(function (item) {
+                        if (item && item.trim() !== "") {
+                            $ddl.append('<option value="' + item + '">' + item + '</option>');
+                        }
+                    });
+                }
+                _catalogoTitularesRsCargado = true;
+                inicializarSelect2TitularRs();
+                if (typeof callback === "function") callback();
+            })
+            .always(function () {
+                _cargandoTitularesRs = false;
+            });
     }
 
     function inicializarSelect2TitularRs() {
@@ -592,6 +617,38 @@ PV.Hotkeys = (function () {
     }
 
     function buscarArticulosAvanzado() {
+        var descripcion = ($("#txtFiltroDescripcion").val() || "").trim();
+        var codigo = ($("#txtFiltroCodigo").val() || "").trim();
+        var laboratorio = ($("#txtFiltroLaboratorio").val() || "").trim();
+        var principioActivo = ($("#txtFiltroPrincipioActivo").val() || "").trim();
+        var titularRs = ($("#ddlFiltroTitularRs").val() || "").trim();
+
+        // Validar que al menos un criterio tenga longitud representativa
+        var tieneCriterioValido = 
+            descripcion.length >= 3 ||
+            laboratorio.length >= 3 ||
+            principioActivo.length >= 3 ||
+            codigo.length >= 2 ||
+            titularRs.length > 0;
+
+        if (!tieneCriterioValido) {
+            Swal.fire({
+                type: "info",
+                title: "Búsqueda de Artículos",
+                text: "Ingrese al menos 3 caracteres en descripción, laboratorio o principio activo (o al menos 2 en código) para buscar.",
+                timer: 2500,
+                showConfirmButton: false,
+                toast: true,
+                position: "top-end"
+            });
+            return;
+        }
+
+        // Abortar búsqueda anterior si aún está en curso
+        if (_xhrBusquedaAvanzada && _xhrBusquedaAvanzada.readyState !== 4) {
+            _xhrBusquedaAvanzada.abort();
+        }
+
         _seleccionAvanzadaCodigos = [];
         $("#chkSeleccionarTodosAvanzada").prop("checked", false);
 
@@ -600,16 +657,16 @@ PV.Hotkeys = (function () {
 
         $("body").addClass("loading");
 
-        $.ajax({
+        _xhrBusquedaAvanzada = $.ajax({
             url: "/PuntoVenta/Buscar_ArticulosAvanzado",
             type: "GET",
             dataType: "json",
             data: {
-                descripcion: $("#txtFiltroDescripcion").val() || "",
-                codigo: $("#txtFiltroCodigo").val() || "",
-                laboratorio: $("#txtFiltroLaboratorio").val() || "",
-                principioActivo: $("#txtFiltroPrincipioActivo").val() || "",
-                titularRs: $("#ddlFiltroTitularRs").val() || "",
+                descripcion: descripcion,
+                codigo: codigo,
+                laboratorio: laboratorio,
+                principioActivo: principioActivo,
+                titularRs: titularRs,
                 codigoListaPrecio: listaPrecio,
                 codigoAlmacen: almacen
             },
@@ -710,7 +767,8 @@ PV.Hotkeys = (function () {
                     }
                 });
             },
-            error: function (xhr) {
+            error: function (xhr, status) {
+                if (status === "abort") return;
                 $("body").removeClass("loading");
                 Swal.fire({
                     type: "error",
