@@ -911,70 +911,122 @@ namespace UI.Controllers
         [HttpGet]
         public async Task<IActionResult> ObtenerNotasCreditoOrden([FromQuery] int docEntry)
         {
-            var response = await _apiClient.GetAsync($"api/PuntoVenta/ObtenerNotasCreditoOrden?docEntry={docEntry}");
-            var content = await response.Content.ReadAsStringAsync();
-
-            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            try
             {
-                string mensajeError = "No cuenta con autorización para gestionar notas de crédito de esta orden de venta.";
-                try
+                var response = await _apiClient.GetAsync($"api/PuntoVenta/ObtenerNotasCreditoOrden?docEntry={docEntry}");
+                var content = await response.Content.ReadAsStringAsync();
+
+                if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
                 {
-                    var token = Newtonsoft.Json.Linq.JObject.Parse(content);
-                    var err = token["error"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                    string mensajeError = "No cuenta con autorización para gestionar notas de crédito de esta orden de venta.";
+                    try
+                    {
+                        var token = Newtonsoft.Json.Linq.JObject.Parse(content);
+                        var err = token["error"]?.ToString() ?? token["Error"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                    }
+                    catch { }
+
+                    return Ok(new
+                    {
+                        success = false,
+                        esAccesoDenegado = true,
+                        statusCode = 403,
+                        error = mensajeError
+                    });
                 }
-                catch { }
 
-                return Ok(new
+                if (!response.IsSuccessStatusCode)
                 {
-                    success = false,
-                    esAccesoDenegado = true,
-                    statusCode = 403,
-                    error = mensajeError
-                });
-            }
+                    string mensajeError = $"Error en servicio central (HTTP {(int)response.StatusCode})";
+                    try
+                    {
+                        var token = Newtonsoft.Json.Linq.JObject.Parse(content);
+                        var err = token["error"]?.ToString() ?? token["Error"]?.ToString() ?? token["message"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                    }
+                    catch
+                    {
+                        if (!string.IsNullOrWhiteSpace(content) && content.Length < 200)
+                            mensajeError = content;
+                    }
 
-            return new ContentResult
+                    return StatusCode((int)response.StatusCode, new { success = false, error = mensajeError });
+                }
+
+                return new ContentResult
+                {
+                    Content = content,
+                    ContentType = "application/json; charset=utf-8",
+                    StatusCode = (int)response.StatusCode
+                };
+            }
+            catch (Exception ex)
             {
-                Content = content,
-                ContentType = "application/json; charset=utf-8",
-                StatusCode = (int)response.StatusCode
-            };
+                _logger.LogError(ex, "Error al consultar notas de crédito en API para docEntry {DocEntry}", docEntry);
+                return StatusCode(500, new { success = false, error = $"No se pudo comunicar con el servicio central API: {ex.Message}" });
+            }
         }
 
         [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpPost]
         public async Task<IActionResult> ActualizarEstadoNotasCredito([FromBody] ActualizarEstadoNcRequestDTO request)
         {
-            var response = await _apiClient.PostAsync("api/PuntoVenta/ActualizarEstadoNotasCredito", request);
-            var content = await response.Content.ReadAsStringAsync();
-
-            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            try
             {
-                string mensajeError = "No cuenta con autorización para actualizar notas de crédito de esta orden de venta.";
-                try
+                var response = await _apiClient.PostAsync("api/PuntoVenta/ActualizarEstadoNotasCredito", request);
+                var content = await response.Content.ReadAsStringAsync();
+
+                if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
                 {
-                    var token = Newtonsoft.Json.Linq.JObject.Parse(content);
-                    var err = token["error"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                    string mensajeError = "No cuenta con autorización para actualizar notas de crédito de esta orden de venta.";
+                    try
+                    {
+                        var token = Newtonsoft.Json.Linq.JObject.Parse(content);
+                        var err = token["error"]?.ToString() ?? token["Error"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                    }
+                    catch { }
+
+                    return Ok(new
+                    {
+                        success = false,
+                        esAccesoDenegado = true,
+                        statusCode = 403,
+                        error = mensajeError
+                    });
                 }
-                catch { }
 
-                return Ok(new
+                if (!response.IsSuccessStatusCode)
                 {
-                    success = false,
-                    esAccesoDenegado = true,
-                    statusCode = 403,
-                    error = mensajeError
-                });
-            }
+                    string mensajeError = $"Error al actualizar en servicio central (HTTP {(int)response.StatusCode})";
+                    try
+                    {
+                        var token = Newtonsoft.Json.Linq.JObject.Parse(content);
+                        var err = token["error"]?.ToString() ?? token["Error"]?.ToString() ?? token["message"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(err)) mensajeError = err;
+                    }
+                    catch
+                    {
+                        if (!string.IsNullOrWhiteSpace(content) && content.Length < 200)
+                            mensajeError = content;
+                    }
 
-            return new ContentResult
+                    return StatusCode((int)response.StatusCode, new { success = false, error = mensajeError });
+                }
+
+                return new ContentResult
+                {
+                    Content = content,
+                    ContentType = "application/json; charset=utf-8",
+                    StatusCode = (int)response.StatusCode
+                };
+            }
+            catch (Exception ex)
             {
-                Content = content,
-                ContentType = "application/json; charset=utf-8",
-                StatusCode = (int)response.StatusCode
-            };
+                _logger.LogError(ex, "Error al actualizar notas de crédito en API para docEntry {DocEntry}", request?.DocEntry);
+                return StatusCode(500, new { success = false, error = $"No se pudo comunicar con el servicio central API: {ex.Message}" });
+            }
         }
 
         #endregion

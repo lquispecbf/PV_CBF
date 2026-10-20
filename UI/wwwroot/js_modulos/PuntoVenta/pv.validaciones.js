@@ -516,11 +516,12 @@ PV.Validaciones = (function () {
         const orinRecordParts = [];
         const notasCreditoParts = [];
 
-        // Validación obligatoria en cliente: Ninguna nota de crédito seleccionada puede estar en uso o bloqueada
+        // Validación obligatoria en cliente: Ninguna nota de crédito seleccionada puede estar en uso en OTRA orden
         const ncsEnUso = [];
         $(".chk-nota-credito:checked").each(function () {
-            const enUso = $(this).data("en-uso") === "1" || $(this).data("en-uso") === 1 || $(this).closest(".nota-credito-item").hasClass("nota-credito-bloqueada");
-            if (enUso) {
+            const enUso = $(this).data("en-uso") === "1" || $(this).data("en-uso") === 1;
+            const esMismaOrden = $(this).data("es-misma-orden") === "1" || $(this).data("es-misma-orden") === 1;
+            if (enUso && !esMismaOrden) {
                 const numAtCard = ($(this).data("numatcard") || $(this).data("docnum") || $(this).val() || "").toString().trim();
                 const ordenUso = $(this).data("orden-uso") || "";
                 ncsEnUso.push(ordenUso ? `${numAtCard} (en uso en Orden N° ${ordenUso})` : numAtCard);

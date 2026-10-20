@@ -3119,6 +3119,18 @@ PV.Detalle = (function () {
     });
 
     $(document).on("change", ".chk-nota-credito", function () {
+        var $chk = $(this);
+        var $card = $chk.closest(".nota-credito-item");
+        var esMismaOrden = $chk.data("es-misma-orden") === "1" || $chk.data("es-misma-orden") === 1;
+        if (esMismaOrden) {
+            if (!$chk.prop("checked")) {
+                $card.removeClass("nota-credito-bloqueada");
+                $card.find(".nota-credito-badge-bloqueada").hide();
+            } else {
+                $card.addClass("nota-credito-bloqueada");
+                $card.find(".nota-credito-badge-bloqueada").show();
+            }
+        }
         recalcularTotales();
     });
 
