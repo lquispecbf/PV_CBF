@@ -179,7 +179,16 @@ $(document).ready(function () {
 
     $("#btnBusquedaListaPrecios").on("click", function (e) {
         e.preventDefault();
+        abrirModalExportarListaPrecios();
+    });
+
+    $("#btnConfirmarExportarListaPrecios").on("click", function (e) {
+        e.preventDefault();
         descargarListaPreciosCliente();
+    });
+
+    $("#ddlModalExportarListaPrecios").on("change", function () {
+        $("#alertDescargaExitosaListaPrecios").hide();
     });
 
     $("#btnBusquedaEnviarWms").on("click", function (e) {
@@ -925,6 +934,46 @@ function imprimirPreliminarSapDesdeBusqueda() {
     });
 }
 
+function abrirModalExportarListaPrecios() {
+    if (PV.Utils && PV.Utils._procesando) return;
+
+    if (!tienePermisoPv("puedeDescargarListaPrecios", true)) {
+        if (typeof Swal !== "undefined") {
+            Swal.fire({
+                type: "warning",
+                title: "Acceso Denegado",
+                text: "No cuenta con permisos para descargar la lista de precios."
+            });
+        } else {
+            alert("No cuenta con permisos para descargar la lista de precios.");
+        }
+        return;
+    }
+
+    var $ddlModal = $("#ddlModalExportarListaPrecios");
+    var $ddlVenta = $("#ddlClienteListaPrecio");
+
+    // Si aún no tiene opciones cargadas, intentar cargarlas
+    if ($ddlModal.find("option").length === 0) {
+        if (PV.Catalogos && typeof PV.Catalogos.cargarListaPrecios === "function") {
+            PV.Catalogos.cargarListaPrecios(function () {
+                var valorActual = $ddlVenta.val();
+                if (valorActual) {
+                    $ddlModal.val(valorActual);
+                }
+            });
+        }
+    } else {
+        var valorActual = $ddlVenta.val();
+        if (valorActual && $ddlModal.find("option[value='" + valorActual + "']").length > 0) {
+            $ddlModal.val(valorActual);
+        }
+    }
+
+    $("#alertDescargaExitosaListaPrecios").hide();
+    $("#mdlExportarListaPrecios").modal("show");
+}
+
 function descargarListaPreciosCliente() {
     if (PV.Utils && PV.Utils._procesando) return;
 
@@ -941,14 +990,24 @@ function descargarListaPreciosCliente() {
         return;
     }
 
-    var $btn = $("#btnBusquedaListaPrecios");
-    var htmlOriginal = $btn.html();
+    var $btnModal = $("#btnConfirmarExportarListaPrecios");
+    var htmlOriginalModal = $btnModal.html();
+    var $btnPrincipal = $("#btnBusquedaListaPrecios");
+    var htmlOriginalPrincipal = $btnPrincipal.html();
 
-    // Activar únicamente el loading nativo de la intranet
-    $btn.prop("disabled", true).html('<i class="fa fa-spinner fa-spin"></i> Generando...');
+    var priceList = $("#ddlModalExportarListaPrecios").val() || "1";
+    var nombreLista = $("#ddlModalExportarListaPrecios option:selected").text().trim();
+
+    // Activar loading en botón modal y en vista
+    $btnModal.prop("disabled", true).html('<i class="fa fa-spinner fa-spin"></i> Generando...');
+    $btnPrincipal.prop("disabled", true);
     $("body").addClass("loading");
 
-    var url = "/PuntoVenta/ExportarListaPreciosCliente";
+    var queryParams = "priceList=" + encodeURIComponent(priceList);
+    if (nombreLista) {
+        queryParams += "&nombreLista=" + encodeURIComponent(nombreLista);
+    }
+    var url = "/PuntoVenta/ExportarListaPreciosCliente?" + queryParams;
 
     fetch(url, {
         method: "GET",
@@ -981,7 +1040,8 @@ function descargarListaPreciosCliente() {
         }
 
         var disposition = response.headers.get("Content-Disposition");
-        var fileName = "LISTA DE PRECIOS CBF " + new Date().toLocaleDateString("es-PE").replace(/\//g, "-") + ".xlsx";
+        var sufijo = nombreLista ? nombreLista.replace(/\//g, "-") : "CBF";
+        var fileName = "LISTA DE PRECIOS " + sufijo + " " + new Date().toLocaleDateString("es-PE").replace(/\//g, "-") + ".xlsx";
         if (disposition && disposition.indexOf("filename=") !== -1) {
             var filenameRegex = /filename\*?=['"]?(?:UTF-8'')?([^;'"]+)['"]?/i;
             var matches = filenameRegex.exec(disposition);
@@ -1003,6 +1063,38 @@ function descargarListaPreciosCliente() {
         a.click();
         a.remove();
         window.URL.revokeObjectURL(blobUrl);
+
+        // Mostrar aviso visual en el modal
+        $("#alertDescargaExitosaListaPrecios").stop(true, true).fadeIn();
+
+        // Mostrar diálogo modal SweetAlert2 (prioritario sobre todo)
+        if (typeof Swal === "function") {
+            Swal({
+                title: "Descarga exitosa",
+                text: "El archivo ha sido descargado.",
+                type: "success",
+                confirmButtonText: "Aceptar",
+                confirmButtonColor: "#1ab394"
+            });
+        } else if (typeof swal === "function") {
+            swal({
+                title: "Descarga exitosa",
+                text: "El archivo ha sido descargado.",
+                type: "success",
+                confirmButtonText: "Aceptar",
+                confirmButtonColor: "#1ab394"
+            });
+        } else if (typeof Swal !== "undefined" && typeof Swal.fire === "function") {
+            Swal.fire({
+                title: "Descarga exitosa",
+                text: "El archivo ha sido descargado.",
+                type: "success",
+                confirmButtonText: "Aceptar",
+                confirmButtonColor: "#1ab394"
+            });
+        } else {
+            alert("El archivo ha sido descargado.");
+        }
     })
     .catch(function (error) {
         console.error("Error al exportar lista de precios:", error);
@@ -1020,9 +1112,10 @@ function descargarListaPreciosCliente() {
         }
     })
     .finally(function () {
-        // Desactivar el loading nativo al finalizar
+        // Desactivar el loading nativo al finalizar, el modal se mantiene abierto
         $("body").removeClass("loading");
-        $btn.prop("disabled", false).html(htmlOriginal);
+        $btnModal.prop("disabled", false).html(htmlOriginalModal);
+        $btnPrincipal.prop("disabled", false).html(htmlOriginalPrincipal);
     });
 }
 

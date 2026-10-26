@@ -30,6 +30,17 @@ PV.Catalogos = (function () {
                 const pendingVal = $ddl.attr("data-pending-val") || $ddl.val();
                 $ddl.html(html);
 
+                const $ddlModal = $("#ddlModalExportarListaPrecios");
+                if ($ddlModal.length) {
+                    $ddlModal.html(html);
+                    if (pendingVal) {
+                        $ddlModal.val(pendingVal);
+                    }
+                    if (!$ddlModal.val() && $ddlModal.find("option").length > 0) {
+                        $ddlModal.val($ddlModal.find("option:first").val());
+                    }
+                }
+
                 if (pendingVal) {
                     $ddl.val(pendingVal);
                     if ($ddl.val() !== pendingVal) {

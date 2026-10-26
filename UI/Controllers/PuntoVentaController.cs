@@ -853,10 +853,23 @@ namespace UI.Controllers
 
         [RequierePermisoModulo("PuntoVenta:Venta")]
         [HttpGet]
-        public async Task<IActionResult> ExportarListaPreciosCliente([FromQuery] string? itemCode = null)
+        public async Task<IActionResult> ExportarListaPreciosCliente(
+            [FromQuery] int priceList = 1,
+            [FromQuery] string? nombreLista = null,
+            [FromQuery] string? itemCode = null)
         {
-            var query = string.IsNullOrWhiteSpace(itemCode) ? "" : $"?itemCode={Uri.EscapeDataString(itemCode.Trim())}";
-            return await ProxyFileGetAsync($"api/PuntoVenta/ExportarListaPreciosCliente{query}", $"LISTA DE PRECIOS CBF {DateTime.Now:dd-MM-yyyy}.xlsx");
+            var queryParams = new List<string> { $"priceList={priceList}" };
+            if (!string.IsNullOrWhiteSpace(nombreLista))
+            {
+                queryParams.Add($"nombreLista={Uri.EscapeDataString(nombreLista.Trim())}");
+            }
+            if (!string.IsNullOrWhiteSpace(itemCode))
+            {
+                queryParams.Add($"itemCode={Uri.EscapeDataString(itemCode.Trim())}");
+            }
+            var query = "?" + string.Join("&", queryParams);
+            string sufijo = string.IsNullOrWhiteSpace(nombreLista) ? "CBF" : nombreLista.Trim();
+            return await ProxyFileGetAsync($"api/PuntoVenta/ExportarListaPreciosCliente{query}", $"LISTA DE PRECIOS {sufijo} {DateTime.Now:dd-MM-yyyy}.xlsx");
         }
 
         // ========== CONSULTA OFICIAL DIGEMID ==========
