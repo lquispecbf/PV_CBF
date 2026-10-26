@@ -845,12 +845,6 @@ PV.Detalle = (function () {
             if (!codigo) return;
 
             var descripcion = ($fila.find(".txtDetalleDescripcion").val() || "").trim() || codigo;
-            var codigoUmd = $fila.find(".ddlDetalleUmd").val();
-
-            if (!codigoUmd) {
-                Swal.fire({ type: "info", title: "Incomplete", text: "Seleccione una UMD primero." });
-                return;
-            }
 
             var mapListas = {};
             $("#ddlClienteListaPrecio option").each(function () {
@@ -865,11 +859,13 @@ PV.Detalle = (function () {
                     codigoArticulo: codigo,
                     codigoCliente: "",
                     codigoListaPrecio: 0,
-                    codigoUmd: codigoUmd
+                    codigoUmd: 0
                 },
                 success: function (data) {
                     var promosActivas = (data || []).filter(function (p) {
-                        return p.CANTIDAD > 0 && p.PRECIO > 0;
+                        if (!p) return false;
+                        var tipo = (p.PROMO_TYPE || "").toUpperCase();
+                        return tipo === "Q" && Number(p.CANTIDAD) > 0 && Number(p.PRECIO) > 0;
                     });
 
                     if (promosActivas.length === 0) {
@@ -884,6 +880,8 @@ PV.Detalle = (function () {
                     var typeLabels = { Q: "Cantidad", R: "Regalo", P: "Precio", D: "Descuento" };
 
                     promosActivas.sort(function (a, b) {
+                        var cmpUmd = (a.UMD || "").localeCompare(b.UMD || "");
+                        if (cmpUmd !== 0) return cmpUmd;
                         var cmp = Number(a.CANTIDAD) - Number(b.CANTIDAD);
                         if (cmp !== 0) return cmp;
                         return (a.CODIGO_LISTA_PRECIO || "").localeCompare(b.CODIGO_LISTA_PRECIO || "");
@@ -891,13 +889,14 @@ PV.Detalle = (function () {
 
                     var html = '<div style="text-align:left;">';
                     html += '<table class="table table-sm table-bordered mb-0">';
-                    html += '<thead><tr style="background:#1ab394;color:#fff;"><th style="background:transparent;color:#fff;border-color:#18a689;">Cantidad</th><th style="background:transparent;color:#fff;border-color:#18a689;">Precio</th><th style="background:transparent;color:#fff;border-color:#18a689;">Tipo</th><th style="background:transparent;color:#fff;border-color:#18a689;">Lista</th></tr></thead>';
+                    html += '<thead><tr style="background:#1ab394;color:#fff;"><th style="background:transparent;color:#fff;border-color:#18a689;">UMD</th><th style="background:transparent;color:#fff;border-color:#18a689;">Cantidad</th><th style="background:transparent;color:#fff;border-color:#18a689;">Precio</th><th style="background:transparent;color:#fff;border-color:#18a689;">Tipo</th><th style="background:transparent;color:#fff;border-color:#18a689;">Lista</th></tr></thead>';
                     html += '<tbody>';
                     promosActivas.forEach(function (p) {
                         var nombreLista = mapListas[p.CODIGO_LISTA_PRECIO] || p.CODIGO_LISTA_PRECIO || "-";
                         html += '<tr>';
+                        html += '<td class="text-center font-weight-bold">' + (p.UMD || "-") + '</td>';
                         html += '<td class="text-center">' + Number(p.CANTIDAD).toFixed(0) + '</td>';
-                        html += '<td class="text-right">' + Number(p.PRECIO).toFixed(2) + '</td>';
+                        html += '<td class="text-right">S/ ' + Number(p.PRECIO).toFixed(2) + '</td>';
                         html += '<td class="text-center">' + (typeLabels[p.PROMO_TYPE] || p.PROMO_TYPE || "-") + '</td>';
                         html += '<td>' + nombreLista + '</td>';
                         html += '</tr>';
@@ -2983,8 +2982,23 @@ PV.Detalle = (function () {
         $descuento.val("0");
         $regalo.val("NO");
 
+        const $ddlUmd = $fila.find(".ddlDetalleUmd");
+        const umdTexto = ($ddlUmd.find("option:selected").text() || "").trim().toUpperCase();
+        const umdVal = String($ddlUmd.val() || "").trim();
+
         const lista = Array.isArray(promos) ? promos : (promos ? [promos] : []);
-        const lineaBase = lista.find(function (p) { return p && p.PROMO_TYPE; });
+
+        // Filtrado estricto por Unidad de Medida (UMD):
+        // Si la promoción configurada no coincide con la UMD seleccionada en la fila,
+        // no existe promoción aplicable y se mantiene el precio normal de lista.
+        const listaUmd = lista.filter(function (p) {
+            if (!p || !p.PROMO_TYPE) return false;
+            if (!p.UMD) return true;
+            const pUmd = (p.UMD || "").trim().toUpperCase();
+            return pUmd === umdTexto || pUmd === umdVal;
+        });
+
+        const lineaBase = listaUmd.find(function (p) { return p && p.PROMO_TYPE; });
         if (!lineaBase) {
             recalcularLinea($fila);
             if (!opciones.omitirRecalcularTotales) {
@@ -2997,7 +3011,7 @@ PV.Detalle = (function () {
 
         switch (tipo) {
             case "P": {
-                const linea = lista.find(function (p) {
+                const linea = listaUmd.find(function (p) {
                     return p && p.PROMO_TYPE === tipo && p.CANTIDAD === 0
                         && p.PRECIO > 0 && p.DESCUENTO === 0;
                 });
@@ -3007,7 +3021,7 @@ PV.Detalle = (function () {
                 break;
             }
             case "Q": {
-                const linea = lista
+                const linea = listaUmd
                     .filter(function (p) {
                     return p && p.PROMO_TYPE === tipo && p.CANTIDAD > 0
                         && p.PRECIO > 0 && p.DESCUENTO === 0
@@ -3020,7 +3034,7 @@ PV.Detalle = (function () {
                 break;
             }
             case "D": {
-                const linea = lista
+                const linea = listaUmd
                     .filter(function (p) {
                     return p && p.PROMO_TYPE === tipo && p.PRECIO === 0
                         && p.DESCUENTO > 0 && cantidad >= p.CANTIDAD;
@@ -3032,7 +3046,7 @@ PV.Detalle = (function () {
                 break;
             }
             case "R": {
-                const linea = lista
+                const linea = listaUmd
                     .filter(function (p) {
                     return p && p.PROMO_TYPE === tipo && p.PRECIO === 0
                         && p.DESCUENTO === 0 && cantidad >= p.CANTIDAD;
@@ -3119,6 +3133,18 @@ PV.Detalle = (function () {
     });
 
     $(document).on("change", ".chk-nota-credito", function () {
+        var $chk = $(this);
+        var $card = $chk.closest(".nota-credito-item");
+        var esMismaOrden = $chk.data("es-misma-orden") === "1" || $chk.data("es-misma-orden") === 1;
+        if (esMismaOrden) {
+            if (!$chk.prop("checked")) {
+                $card.removeClass("nota-credito-bloqueada");
+                $card.find(".nota-credito-badge-bloqueada").hide();
+            } else {
+                $card.addClass("nota-credito-bloqueada");
+                $card.find(".nota-credito-badge-bloqueada").show();
+            }
+        }
         recalcularTotales();
     });
 

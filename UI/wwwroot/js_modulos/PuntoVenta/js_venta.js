@@ -2058,27 +2058,9 @@ $(document).on("click", ".btn-gestionar-nc", function () {
                     $badgeEstado.addClass("badge-primary");
                 }
 
-                // Configurar controles según si el estado permite modificación
-                var $alertInfo = $("#alertInfoGestionarNc");
-                var $btnGuardar = $("#btnGuardarEstadoNc");
-
-                if (esModificable) {
-                    // Estados CREADO, CREADO SAP, ENVIADO WMS: Habilitado para modificar y grabar
-                    $alertInfo
-                        .removeClass("alert-warning alert-danger")
-                        .addClass("alert-info")
-                        .html('<i class="fa fa-info-circle mr-1 text-info"></i> Modifique el estado (<strong>ACTIVO</strong> o <strong>INACTIVO</strong>) de cada Nota de Crédito. Al guardar los cambios se actualizará el registro interno sin recalcular montos ni alterar otros campos.');
-                    $btnGuardar.show().prop("disabled", false);
-                } else {
-                    // Estado CANCELADO / CANCELADO SAP u otros no permitidos: Solamente ver y cerrar
-                    $alertInfo
-                        .removeClass("alert-info alert-danger")
-                        .addClass("alert-warning")
-                        .html('<i class="fa fa-lock mr-1 text-warning"></i> <strong>Modo Solo Lectura:</strong> La orden de venta se encuentra en estado <strong>' + escapeHtmlNc(textoEstado) + '</strong>. No se permite modificar ni cambiar ni grabar el estado de las notas de crédito. Solamente puede ver la información y cerrar este modal.');
-                    $btnGuardar.hide().prop("disabled", true);
-                }
-
-                renderizarModalNotasCredito(resp.orinRecord || "", esModificable);
+                var itemsParaRender = resp.items || resp.Items || [];
+                var orinRecordParaRender = resp.orinRecord || resp.OrinRecord || "";
+                renderizarModalNotasCredito(orinRecordParaRender, esModificable, itemsParaRender, textoEstado);
                 $("#modalGestionarNc").modal("show");
             },
             error: function (xhr) {
@@ -2110,8 +2092,19 @@ $(document).on("click", ".btn-gestionar-nc", function () {
                 }
 
                 var msgErr = "Error al consultar las notas de crédito de la orden.";
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    msgErr = xhr.responseJSON.error;
+                if (xhr.responseJSON) {
+                    msgErr = xhr.responseJSON.error || xhr.responseJSON.Error || xhr.responseJSON.message || xhr.responseJSON.Message || msgErr;
+                } else if (xhr.responseText) {
+                    try {
+                        var parsed = JSON.parse(xhr.responseText);
+                        msgErr = parsed.error || parsed.Error || parsed.message || parsed.Message || msgErr;
+                    } catch (e) {
+                        if (xhr.status > 0) {
+                            msgErr = "Error (" + xhr.status + "): " + (xhr.statusText || "Servidor no disponible");
+                        }
+                    }
+                } else if (xhr.status > 0) {
+                    msgErr = "Error (" + xhr.status + "): " + (xhr.statusText || "Servidor no disponible");
                 }
                 Swal.fire({
                     type: "error",
@@ -2127,43 +2120,161 @@ $(document).on("click", ".btn-gestionar-nc", function () {
     });
 });
 
-function renderizarModalNotasCredito(orinRecord, esModificable) {
+function renderizarModalNotasCredito(orinRecord, esModificable, items, textoEstado) {
     var $tbody = $("#tbodyGestionarNc");
     $tbody.empty();
     _ncItemsActuales = [];
 
-    var rawRecord = (orinRecord || "").trim();
-    if (!rawRecord) {
-        $tbody.append('<tr><td colspan="5" class="text-center text-muted py-3">No hay notas de crédito registradas en esta orden.</td></tr>');
-        return;
+    if (Array.isArray(items) && items.length > 0) {
+        items.forEach(function (it, idx) {
+            var estado = (it.Estado !== undefined ? it.Estado : (it.estado || "1")).toString().trim();
+            var docEntrySap = parseInt(it.DocEntrySap !== undefined ? it.DocEntrySap : it.docEntrySap, 10) || 0;
+            var docNum = parseInt(it.DocNum !== undefined ? it.DocNum : it.docNum, 10) || 0;
+            var monto = parseFloat(it.Monto !== undefined ? it.Monto : it.monto) || 0;
+            var numAtCard = (it.NumAtCard !== undefined ? it.NumAtCard : (it.numAtCard || "")).toString().trim();
+            var esCerradaSap = !!(it.EsCerradaSap !== undefined ? it.EsCerradaSap : it.esCerradaSap);
+            var permiteModificar = (it.PermiteModificar !== undefined ? it.PermiteModificar : it.permiteModificar);
+            if (permiteModificar === undefined) {
+                permiteModificar = esModificable && !esCerradaSap;
+            } else {
+                permiteModificar = !!permiteModificar;
+            }
+
+            _ncItemsActuales.push({
+                index: idx,
+                estadoOriginal: estado,
+                estadoActual: estado,
+                docEntrySap: docEntrySap,
+                docNum: docNum,
+                monto: monto,
+                numAtCard: numAtCard,
+                esCerradaSap: esCerradaSap,
+                permiteModificar: permiteModificar
+            });
+        });
+    } else {
+        var rawRecord = (orinRecord || "").trim();
+        if (!rawRecord) {
+            $tbody.append('<tr><td colspan="5" class="text-center text-muted py-3">No hay notas de crédito registradas en esta orden.</td></tr>');
+            $("#alertInfoGestionarNc")
+                .removeClass("alert-info alert-danger")
+                .addClass("alert-warning")
+                .html('<i class="fa fa-info-circle mr-1 text-muted"></i> No hay notas de crédito registradas en esta orden.');
+            $("#btnGuardarEstadoNc").hide().prop("disabled", true);
+            return;
+        }
+
+        var tokens = rawRecord.split(";");
+        var idx = 0;
+
+        tokens.forEach(function (t) {
+            t = t.trim();
+            if (!t) return;
+
+            if (t.indexOf("|") >= 0) {
+                // Formato nuevo: ESTADO|DOCENTRY_NC|SALDO|NUMATCARD
+                var parts = t.split("|");
+                var estado = (parts[0] || "1").trim();
+                var docEntrySap = parseInt(parts[1], 10) || 0;
+                var monto = parseFloat(parts[2]) || 0;
+                var numAtCard = (parts[3] || "").trim();
+
+                _ncItemsActuales.push({
+                    index: idx,
+                    estadoOriginal: estado,
+                    estadoActual: estado,
+                    docEntrySap: docEntrySap,
+                    docNum: 0,
+                    monto: monto,
+                    numAtCard: numAtCard,
+                    esCerradaSap: false,
+                    permiteModificar: esModificable
+                });
+            } else if (t.indexOf(".") >= 0) {
+                // Formato anterior: DOCNUM.SALDO
+                var firstDot = t.indexOf(".");
+                var docNum = parseInt(t.substring(0, firstDot), 10) || 0;
+                var monto = parseFloat(t.substring(firstDot + 1)) || 0;
+
+                _ncItemsActuales.push({
+                    index: idx,
+                    estadoOriginal: "1",
+                    estadoActual: "1",
+                    docEntrySap: docNum,
+                    docNum: docNum,
+                    monto: monto,
+                    numAtCard: "NC " + docNum,
+                    esCerradaSap: false,
+                    permiteModificar: esModificable
+                });
+            } else {
+                // Formato anterior: solo DOCNUM
+                var docNumSolo = parseInt(t, 10) || 0;
+                if (docNumSolo > 0) {
+                    _ncItemsActuales.push({
+                        index: idx,
+                        estadoOriginal: "1",
+                        estadoActual: "1",
+                        docEntrySap: docNumSolo,
+                        docNum: docNumSolo,
+                        monto: 0,
+                        numAtCard: "NC " + docNumSolo,
+                        esCerradaSap: false,
+                        permiteModificar: esModificable
+                    });
+                }
+            }
+            idx++;
+        });
     }
 
-    var tokens = rawRecord.split(";");
-    var idx = 0;
+    var $alertInfo = $("#alertInfoGestionarNc");
+    var $btnGuardar = $("#btnGuardarEstadoNc");
+    var estadoTexto = textoEstado || $("#lblModalNcEstado").text().trim() || "-";
 
-    tokens.forEach(function (t) {
-        t = t.trim();
-        if (!t) return;
-
-        var parts = t.split("|");
-        // Formato: ESTADO|DOCENTRY_NC|SALDO|NUMATCARD
-        var estado = (parts[0] || "1").trim(); // "1" o "0"
-        var docEntrySap = (parts[1] || "").trim();
-        var monto = parseFloat(parts[2]) || 0;
-        var numAtCard = (parts[3] || "").trim();
-
-        _ncItemsActuales.push({
-            index: idx,
-            estadoOriginal: estado,
-            estadoActual: estado,
-            docEntrySap: docEntrySap,
-            monto: monto,
-            numAtCard: numAtCard,
-            partesExtras: parts.slice(4) // preservar si hubiera partes adicionales
-        });
-
-        idx++;
+    var itemsModificables = _ncItemsActuales.filter(function (it) {
+        return it.permiteModificar && !it.esCerradaSap;
     });
+    var itemsCerrados = _ncItemsActuales.filter(function (it) {
+        return it.esCerradaSap;
+    });
+
+    if (!esModificable) {
+        // Orden no modificable (CANCELADO, etc.)
+        $alertInfo
+            .removeClass("alert-info alert-danger")
+            .addClass("alert-warning")
+            .html('<i class="fa fa-lock mr-1 text-warning"></i> <strong>Modo Solo Lectura:</strong> La orden de venta se encuentra en estado <strong>' + escapeHtmlNc(estadoTexto) + '</strong>. No se permite modificar ni grabar el estado de las notas de crédito.');
+        $btnGuardar.hide().prop("disabled", true);
+    } else if (_ncItemsActuales.length === 0) {
+        // Sin items
+        $alertInfo
+            .removeClass("alert-info alert-danger")
+            .addClass("alert-warning")
+            .html('<i class="fa fa-info-circle mr-1 text-muted"></i> No hay notas de crédito registradas en esta orden.');
+        $btnGuardar.hide().prop("disabled", true);
+    } else if (itemsModificables.length === 0) {
+        // Todas las notas de crédito están cerradas en SAP
+        $alertInfo
+            .removeClass("alert-info alert-danger")
+            .addClass("alert-warning")
+            .html('<i class="fa fa-lock mr-1 text-warning"></i> <strong>Modo Solo Lectura:</strong> Todas las notas de crédito aplicadas a esta orden se encuentran <strong>cerradas en SAP</strong>. No se permite modificar su estado.');
+        $btnGuardar.hide().prop("disabled", true);
+    } else if (itemsCerrados.length > 0) {
+        // Al menos una modificable y al menos una cerrada
+        $alertInfo
+            .removeClass("alert-warning alert-danger")
+            .addClass("alert-info")
+            .html('<i class="fa fa-info-circle mr-1 text-info"></i> Modifique el estado (<strong>ACTIVO</strong> o <strong>INACTIVO</strong>) de las Notas de Crédito habilitadas. Las notas de crédito <strong>cerradas en SAP</strong> se mantienen en modo solo lectura.');
+        $btnGuardar.show().prop("disabled", false);
+    } else {
+        // Todas modificables
+        $alertInfo
+            .removeClass("alert-warning alert-danger")
+            .addClass("alert-info")
+            .html('<i class="fa fa-info-circle mr-1 text-info"></i> Modifique el estado (<strong>ACTIVO</strong> o <strong>INACTIVO</strong>) de cada Nota de Crédito. Al guardar los cambios se actualizará el registro interno sin recalcular montos ni alterar otros campos.');
+        $btnGuardar.show().prop("disabled", false);
+    }
 
     if (_ncItemsActuales.length === 0) {
         $tbody.append('<tr><td colspan="5" class="text-center text-muted py-3">No hay notas de crédito registradas en esta orden.</td></tr>');
@@ -2173,11 +2284,18 @@ function renderizarModalNotasCredito(orinRecord, esModificable) {
     _ncItemsActuales.forEach(function (item) {
         var esActivo = item.estadoActual === "1";
         var badgeHtml = esActivo 
-            ? '<span class="badge badge-primary font-bold badge-nc-estado" id="badge_nc_' + item.index + '" style="background-color:#1ab394;">ACTIVO</span>'
-            : '<span class="badge badge-secondary font-bold badge-nc-estado" id="badge_nc_' + item.index + '">INACTIVO</span>';
+            ? '<span class="badge badge-primary font-bold badge-nc-estado" id="badge_nc_' + item.index + '" style="background-color:#1ab394; color:#ffffff !important; padding:3px 6px; font-size:10px;">ACTIVO</span>'
+            : '<span class="badge font-bold badge-nc-estado" id="badge_nc_' + item.index + '" style="background-color:#88929a !important; color:#ffffff !important; padding:3px 6px; font-size:10px;">INACTIVO</span>';
 
         var celdaEstadoHtml;
-        if (esModificable) {
+        if (item.esCerradaSap) {
+            // Nota de crédito cerrada en SAP: No se puede modificar
+            celdaEstadoHtml = 
+                '<div class="d-flex align-items-center justify-content-center gap-1 flex-wrap">' +
+                    badgeHtml +
+                    '<span class="badge ml-1 font-bold" style="background-color:#495057 !important; color:#ffffff !important; font-size:9.5px; padding:3px 7px; border-radius:3px; letter-spacing:0.3px; border:1px solid #343a40; box-shadow:0 1px 2px rgba(0,0,0,0.15);" title="Nota de crédito cerrada en SAP">CERRADA</span>' +
+                '</div>';
+        } else if (item.permiteModificar) {
             // Modo edición habilitado (CREADO, CREADO SAP, ENVIADO WMS): dropdown para cambiar estado + badge
             var selectHtml = 
                 '<select class="form-control form-control-sm font-bold ddl-estado-nc" data-index="' + item.index + '" style="border-color:' + (esActivo ? '#1ab394' : '#d1dade') + ';">' +
@@ -2197,12 +2315,16 @@ function renderizarModalNotasCredito(orinRecord, esModificable) {
                 '</div>';
         }
 
+        var docEntryMostrar = item.docEntrySap > 0 ? item.docEntrySap : (item.docNum > 0 ? item.docNum : "-");
+        var numAtCardMostrar = item.numAtCard || (item.docNum > 0 ? ("NC " + item.docNum) : "-");
+        var montoMostrar = (typeof item.monto === "number" && !isNaN(item.monto)) ? item.monto : 0;
+
         var fila = 
             '<tr id="fila_nc_' + item.index + '" class="' + (esActivo ? '' : 'table-light') + '">' +
                 '<td class="text-center font-bold text-muted align-middle">' + (item.index + 1) + '</td>' +
-                '<td class="text-center font-bold text-navy align-middle">' + escapeHtmlNc(item.docEntrySap || "-") + '</td>' +
-                '<td class="text-left font-bold text-dark align-middle"><i class="fa fa-file-text-o mr-1 text-muted"></i>' + escapeHtmlNc(item.numAtCard || "-") + '</td>' +
-                '<td class="text-right font-bold text-dark align-middle">S/ ' + item.monto.toFixed(2) + '</td>' +
+                '<td class="text-center font-bold text-navy align-middle">' + escapeHtmlNc(String(docEntryMostrar)) + '</td>' +
+                '<td class="text-left font-bold text-dark align-middle"><i class="fa fa-file-text-o mr-1 text-muted"></i>' + escapeHtmlNc(numAtCardMostrar) + '</td>' +
+                '<td class="text-right font-bold text-dark align-middle">S/ ' + montoMostrar.toFixed(2) + '</td>' +
                 '<td class="text-center align-middle">' + celdaEstadoHtml + '</td>' +
             '</tr>';
 
@@ -2223,11 +2345,11 @@ $(document).on("change", ".ddl-estado-nc", function () {
     var $fila = $("#fila_nc_" + index);
 
     if (val === "1") {
-        $badge.removeClass("badge-secondary").addClass("badge-primary").css("background-color", "#1ab394").text("ACTIVO");
+        $badge.removeClass("badge-secondary").addClass("badge-primary").css({"background-color": "#1ab394", "color": "#ffffff"}).text("ACTIVO");
         $select.css("border-color", "#1ab394");
         $fila.removeClass("table-light");
     } else {
-        $badge.removeClass("badge-primary").addClass("badge-secondary").css("background-color", "").text("INACTIVO");
+        $badge.removeClass("badge-primary").addClass("badge-secondary").css({"background-color": "#88929a", "color": "#ffffff"}).text("INACTIVO");
         $select.css("border-color", "#d1dade");
         $fila.addClass("table-light");
     }
@@ -2256,6 +2378,19 @@ $(document).on("click", "#btnGuardarEstadoNc", function () {
         return;
     }
 
+    var itemsModificables = _ncItemsActuales.filter(function (item) {
+        return item.permiteModificar && !item.esCerradaSap;
+    });
+
+    if (itemsModificables.length === 0) {
+        Swal.fire({
+            type: "warning",
+            title: "Operación no permitida",
+            text: "No se puede guardar porque todas las notas de crédito se encuentran cerradas en SAP o la orden no permite modificaciones."
+        });
+        return;
+    }
+
     var huboCambios = _ncItemsActuales.some(function (item) {
         return item.estadoActual !== item.estadoOriginal;
     });
@@ -2269,13 +2404,25 @@ $(document).on("click", "#btnGuardarEstadoNc", function () {
         return;
     }
 
-    // Reconstruir ORIN_RECORD con formato: ESTADO|DOCENTRY_NC|SALDO|NUMATCARD;
+    var algunCerradoModificado = _ncItemsActuales.some(function (item) {
+        return item.esCerradaSap && item.estadoActual !== item.estadoOriginal;
+    });
+
+    if (algunCerradoModificado) {
+        Swal.fire({
+            type: "warning",
+            title: "Operación no permitida",
+            text: "No se puede modificar el estado de notas de crédito que ya se encuentran cerradas en SAP."
+        });
+        return;
+    }
+
+    // Reconstruir ORIN_RECORD siempre en formato actual: ESTADO|DOCENTRY_NC|SALDO|NUMATCARD;
     var partes = [];
     _ncItemsActuales.forEach(function (item) {
-        var segmento = item.estadoActual + "|" + item.docEntrySap + "|" + item.monto.toFixed(2) + "|" + item.numAtCard;
-        if (item.partesExtras && item.partesExtras.length > 0) {
-            segmento += "|" + item.partesExtras.join("|");
-        }
+        var docEntryUsar = item.docEntrySap > 0 ? item.docEntrySap : (item.docNum > 0 ? item.docNum : 1);
+        var numAtCardUsar = (item.numAtCard || ("NC " + docEntryUsar)).trim();
+        var segmento = item.estadoActual + "|" + docEntryUsar + "|" + item.monto.toFixed(2) + "|" + numAtCardUsar;
         partes.push(segmento);
     });
 
@@ -2470,8 +2617,8 @@ function cargarVentaEditable(resp, docStatus, estadoEnvio) {
         resp.INVOICE_ADDRESS
     );
     PV.Cliente.cargarNotasCreditoCliente(resp.CARDCODE, function () {
-        marcarNotasCreditoGuardadas(resp);
-    });
+        marcarNotasCreditoGuardadas(resp, false);
+    }, true, resp.DOCENTRY);
 
     if (resp.SLPCODE) $("#ddlVentaVendedor").val(resp.SLPCODE);
     if (resp.WHSCODE) $("#ddlVentaAlmacen").val(resp.WHSCODE);
@@ -2805,10 +2952,11 @@ function marcarNotasCreditoGuardadas(resp, esModoLectura) {
             return;
         }
 
-        // Si la nota de crédito está en uso en otra orden (borde rojo / data-en-uso = 1)
-        var estaEnUso = !esSoloLectura && ($chk.data("en-uso") === "1" || $chk.data("en-uso") === 1 || $chk.closest(".nota-credito-item").hasClass("nota-credito-bloqueada"));
+        // Si la nota de crédito está en uso en OTRA orden (borde rojo y NO pertenece a esta orden)
+        var esMismaOrden = $chk.data("es-misma-orden") === "1" || $chk.data("es-misma-orden") === 1;
+        var estaEnUsoOtraOrden = !esSoloLectura && ($chk.data("en-uso") === "1" || $chk.data("en-uso") === 1) && !esMismaOrden;
 
-        if (estaEnUso) {
+        if (estaEnUsoOtraOrden) {
             // DESELECCIONAR: está siendo usada en otra orden
             $chk.prop("checked", false);
             ncsDescartadasPorUso.push({
@@ -2817,7 +2965,7 @@ function marcarNotasCreditoGuardadas(resp, esModoLectura) {
                 ordenUso: $chk.data("orden-uso") || 0
             });
         } else {
-            // Nota de crédito habilitada y disponible
+            // Nota de crédito habilitada para esta orden (o modo lectura)
             $chk.prop("checked", true);
         }
     });
@@ -3229,9 +3377,9 @@ function cargarVentaReadOnly(resp) {
         resp.INVOICE_ADDRESS
     );
 
-    // Cargar notas de crédito validando si fueron usadas en otras órdenes (para marcarlas en rojo)
+    // Cargar notas de crédito de la orden consultada (incluyendo las cerradas en SAP si las usó esta orden)
     PV.Cliente.cargarNotasCreditoCliente(resp.CARDCODE, function () {
-        marcarNotasCreditoGuardadas(resp);
+        marcarNotasCreditoGuardadas(resp, true);
     }, true, resp.DOCENTRY);
 
     // Vendedor

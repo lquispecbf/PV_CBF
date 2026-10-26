@@ -561,25 +561,45 @@ PV.Cliente = (function () {
                         const saldo = item.SALDO !== undefined && item.SALDO !== null ? Number(item.SALDO) : Number(item.TOTAL || 0);
                         const totalOrig = Number(item.TOTAL || 0);
                         const enUso = debeValidar && (item.EN_USO === true || item.en_uso === true);
+                        const esMismaOrden = (item.ES_MISMA_ORDEN === true || item.es_misma_orden === true);
+                        const esCerrada = (item.ES_CERRADA === true || item.es_cerrada === true);
                         const ordenUso = item.DOCENTRY_ORDEN_USO || item.docentry_orden_uso || 0;
                         const docNumSap = (item.DOCNUM_SAP_ORDEN_USO || item.docnum_sap_orden_uso || "").toString().trim();
+                        const fechaOrdenUso = (item.FECHA_ORDEN_USO || item.fecha_orden_uso || "").toString().trim();
                         const numOrdenMostrar = docNumSap || (ordenUso ? String(ordenUso) : "");
 
                         let tooltip = `NC: ${numAtCard} | Saldo: S/ ${saldo.toFixed(2)}`;
                         let classItem = "nota-credito-item";
-                        let disabledAttr = esModoLectura ? 'disabled="disabled"' : "";
+                        let disabledAttr = "";
                         let badgeHtml = "";
 
                         if (enUso) {
-                            tooltip += numOrdenMostrar ? ` [EN USO en Orden SAP N° ${numOrdenMostrar}]` : ` [EN USO]`;
+                            const detalleOrden = numOrdenMostrar 
+                                ? `Orden SAP N° ${numOrdenMostrar}${fechaOrdenUso ? ` del ${fechaOrdenUso}` : ""}` 
+                                : (fechaOrdenUso ? `Orden del ${fechaOrdenUso}` : "Orden de venta");
+                            tooltip += ` [EN USO en ${detalleOrden}]`;
                             classItem += " nota-credito-bloqueada";
-                            disabledAttr = 'disabled="disabled"';
                             const textoBadge = numOrdenMostrar ? `EN USO (${numOrdenMostrar})` : "EN USO";
-                            badgeHtml = `<span class="nota-credito-badge-bloqueada" title="En uso en orden ${numOrdenMostrar}">${textoBadge}</span>`;
+                            badgeHtml = `<span class="nota-credito-badge-bloqueada" title="En uso en ${detalleOrden}">${textoBadge}</span>`;
                         }
 
+                        if (esCerrada) {
+                            tooltip += " [CERRADA EN SAP]";
+                            badgeHtml += ` <span class="nota-credito-badge-cerrada" title="Nota de crédito cerrada en SAP">CERRADA</span>`;
+                        }
+
+                        if (esModoLectura) {
+                            disabledAttr = 'disabled="disabled"';
+                        } else {
+                            if ((enUso && !esMismaOrden) || esCerrada) {
+                                disabledAttr = 'disabled="disabled"'; // En uso por otra orden o cerrada: bloqueada
+                            }
+                        }
+
+                        const omitirLabelFor = ((enUso && !esMismaOrden) || esModoLectura || esCerrada);
+
                         html += `
-                            <label class="${classItem}" ${(enUso || esModoLectura) ? "" : `for="nc_${item.DOCENTRY}"`} title="${tooltip}">
+                            <label class="${classItem}" ${omitirLabelFor ? "" : `for="nc_${item.DOCENTRY}"`} title="${tooltip}">
                                 <input class="chk-nota-credito"
                                     type="checkbox"
                                     value="${item.DOCENTRY}"
@@ -590,15 +610,23 @@ PV.Cliente = (function () {
                                     data-total="${saldo}"
                                     data-total-orig="${totalOrig}"
                                     data-en-uso="${enUso ? "1" : "0"}"
+                                    data-es-misma-orden="${esMismaOrden ? "1" : "0"}"
+                                    data-es-cerrada="${esCerrada ? "1" : "0"}"
                                     data-orden-uso="${numOrdenMostrar}"
+                                    data-fecha-orden-uso="${fechaOrdenUso}"
                                     ${disabledAttr}
                                     id="nc_${item.DOCENTRY}">
                                 <span class="nota-credito-texto">
                                     <span class="nota-credito-docnum" title="${numAtCard}">NC: ${numAtCard}</span>
                                     <span class="nota-credito-total">
-                                        S/ ${saldo.toFixed(2)}
-                                        ${badgeHtml}
+                                        <span class="nota-credito-monto">S/ ${saldo.toFixed(2)}</span>
+                                        ${badgeHtml ? `<span class="nota-credito-badges">${badgeHtml}</span>` : ""}
                                     </span>
+                                    ${enUso && fechaOrdenUso ? `
+                                        <span class="nota-credito-fecha-orden" title="Fecha de Orden de Venta: ${fechaOrdenUso}">
+                                            <i class="fa fa-calendar mr-1"></i>Fec. OV: ${fechaOrdenUso}
+                                        </span>
+                                    ` : ""}
                                 </span>
                             </label>`;
                     });
