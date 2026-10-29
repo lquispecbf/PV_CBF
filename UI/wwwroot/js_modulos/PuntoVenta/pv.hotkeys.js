@@ -501,6 +501,9 @@ PV.Hotkeys = (function () {
     }
 
     function abrirModalBusquedaItems($fila) {
+        if ($fila && ($fila.data("esmerch") || $fila.attr("data-esmerch") === "true" || $fila.hasClass("fila-merch"))) {
+            return;
+        }
         if (_bloqueoAperturaBusqueda || PV.Utils.modalAbierto("#modalBusquedaAvanzada") || $("#modalBusquedaAvanzada").hasClass("show") || $("#modalBusquedaAvanzada").is(":visible")) return;
         _bloqueoAperturaBusqueda = true;
 
@@ -1220,6 +1223,8 @@ PV.Hotkeys = (function () {
         $("#tblVentaDetalle tbody tr").each(function () {
             var $f = $(this);
             if ($filaActual && $f[0] === $filaActual[0]) return;
+            var esMerch = !!($f.data("esmerch") || $f.attr("data-esmerch") || $f.hasClass("fila-merch"));
+            if (esMerch) return;
             var cod = $f.find(".txtDetalleCodigo").val();
             if (cod !== codigoArticulo) return;
 
@@ -1234,6 +1239,9 @@ PV.Hotkeys = (function () {
     }
 
     function abrirModalLotesFila($fila) {
+        if (!$fila || !$fila.length) return;
+        var esMerch = !!($fila.data("esmerch") || $fila.attr("data-esmerch") || $fila.hasClass("fila-merch"));
+        if (esMerch) return;
         if (_bloqueoAperturaLotes || PV.Utils.modalAbierto("#modalLotes") || $("#modalLotes").hasClass("show") || $("#modalLotes").is(":visible")) return;
         _bloqueoAperturaLotes = true;
         _lotesGuardadosFila = false;
@@ -1402,15 +1410,18 @@ PV.Hotkeys = (function () {
         }
 
         var $filasConProducto = $("#tblVentaDetalle tbody tr").filter(function () {
-            return $(this).find(".txtDetalleCodigo").val() ? true : false;
+            var $tr = $(this);
+            var esMerch = !!($tr.data("esmerch") || $tr.attr("data-esmerch") || $tr.hasClass("fila-merch"));
+            if (esMerch) return false;
+            return $tr.find(".txtDetalleCodigo").val() ? true : false;
         });
 
         if ($filasConProducto.length === 0) {
             _bloqueoAperturaLotes = false;
             Swal.fire({
                 type: "info",
-                title: "Sin productos",
-                text: "Agregue productos al detalle antes de asignar lotes."
+                title: "Sin productos con lote",
+                text: "No hay productos en el detalle que requieran asignación de lotes (el merchandising no maneja lotes)."
             });
             return;
         }

@@ -360,6 +360,7 @@ namespace UI.Controllers
         }
         #endregion
 
+
         #region Operaciones Punto de Venta (Proxy a la Web API con JWT)
 
         [RequierePermisoModulo("PuntoVenta:StockPorAlmacen")]
@@ -557,6 +558,17 @@ namespace UI.Controllers
         [HttpPost]
         public async Task<IActionResult> Guardar_Venta([FromBody] VentaGuardarRequestDTO request)
         {
+            var esBorrador = string.Equals(request?.DOCSTATUS?.Trim(), "E", StringComparison.OrdinalIgnoreCase);
+            var tieneArticuloSap = request?.DETALLE != null && request.DETALLE.Any(d => !d.ES_MERCH && (esBorrador ? !string.IsNullOrWhiteSpace(d.ITEMCODE) : d.QUANTITY > 0));
+
+            if (!tieneArticuloSap)
+            {
+                return BadRequest(new
+                {
+                    error = "La venta debe incluir al menos un artículo de SAP. No está permitido registrar una orden únicamente con artículos de Merchandising."
+                });
+            }
+
             return await ProxyPostAsync("api/PuntoVenta/Guardar_Venta", request);
         }
 
@@ -1042,6 +1054,17 @@ namespace UI.Controllers
             }
         }
 
+        #region Merchandising PVD (Modal de Venta - Proxy)
+
+        [HttpPost]
+        public async Task<IActionResult> Buscar_ArticulosMerch([FromBody] MerchBusquedaFiltroDTO? filtro)
+        {
+            return await ProxyPostAsync("api/PuntoVenta/Buscar_ArticulosMerch", filtro);
+        }
+
+        #endregion
+
         #endregion
     }
 }
+

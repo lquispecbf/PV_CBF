@@ -2713,7 +2713,11 @@ function cargarVentaEditable(resp, docStatus, estadoEnvio) {
         marcarNotasCreditoGuardadas(resp, false);
     }, true, resp.DOCENTRY);
 
-    if (resp.SLPCODE) $("#ddlVentaVendedor").val(resp.SLPCODE);
+    if (resp.SLPCODE && parseInt(resp.SLPCODE, 10) > 0 && $("#ddlVentaVendedor option[value='" + resp.SLPCODE + "']").length > 0) {
+        $("#ddlVentaVendedor").val(resp.SLPCODE);
+    } else {
+        $("#ddlVentaVendedor").val("-1");
+    }
     if (resp.WHSCODE) $("#ddlVentaAlmacen").val(resp.WHSCODE);
 
     if (resp.DOCDATE) {
@@ -2831,12 +2835,19 @@ function cargarDetalleEditableOptimizado(resp) {
     PV.Detalle.setRecolectarErroresFraccionado(true);
     PV.Utils._procesando = true;
 
-    var itemsParaConsultar = itemsLocal.map(function (it) {
-        return {
-            CodigoArticulo: it.ITEMCODE,
-            CodigoUmd: it.UOMENTRY || null
-        };
-    });
+    var itemsParaConsultar = itemsLocal
+        .filter(function (it) {
+            var esMerch = (PV.Detalle && typeof PV.Detalle.esArticuloMerch === "function")
+                ? PV.Detalle.esArticuloMerch(it)
+                : !!(it.ES_MERCH || (it.ITEMCODE && it.ITEMCODE.toUpperCase().indexOf("MERCH") === 0) || (it.ITEMNAME && it.ITEMNAME.toUpperCase().indexOf("[MERCH]") === 0));
+            return !esMerch;
+        })
+        .map(function (it) {
+            return {
+                CodigoArticulo: it.ITEMCODE,
+                CodigoUmd: it.UOMENTRY || null
+            };
+        });
 
     PV.Detalle.cargarDetalleArticulosVentaBatch(itemsParaConsultar, listaPrecio, almacen, codigoCliente, function (dictResultados) {
         var index = 0;
@@ -2848,38 +2859,47 @@ function cargarDetalleEditableOptimizado(resp) {
                 var itemLocal = itemsLocal[index];
                 var $fila = PV.Detalle.agregarFilaDetalleVacia();
                 var codUpper = (itemLocal.ITEMCODE || "").toUpperCase();
-                var detalle = dictResultados[codUpper];
 
-                if (detalle && detalle.ARTICULO) {
-                    PV.Detalle.llenarFilaDetalleDesdeDetalleVenta($fila, detalle, {
-                        cantidad: itemLocal.QUANTITY || 0,
-                        codigoUmd: itemLocal.UOMENTRY || 0,
-                        descuento: itemLocal.WMS_DSC || 0,
-                        regalo: itemLocal.WMS_GIF || "NO",
-                        mantenerFoco: true,
-                        omitirAsegurarFilaFinal: true,
-                        omitirRecalcularTotales: true,
-                        omitirFechasVencimientoAjax: true,
-                        omitirFraccionadoAjax: true
-                    });
+                var esMerch = (PV.Detalle && typeof PV.Detalle.esArticuloMerch === "function")
+                    ? PV.Detalle.esArticuloMerch(itemLocal)
+                    : !!(itemLocal.ES_MERCH || codUpper.indexOf("MERCH") === 0 || (itemLocal.ITEMNAME && itemLocal.ITEMNAME.toUpperCase().indexOf("[MERCH]") === 0));
 
-                    if (itemLocal.LOTES && itemLocal.LOTES.length > 0) {
-                        var lotes = itemLocal.LOTES.map(function (l) {
-                            return {
-                                ITEMCODE: l.ITEMCODE,
-                                SYSNUMBER: l.SYSNUMBER,
-                                DISTNUMBER: l.DISTNUMBER,
-                                QUANTITY: parseInt(l.QUANTITY) || 0
-                            };
-                        });
-                        $fila.data("lotes", lotes);
-                        PV.Detalle.setearFechaDesdeLotes($fila, lotes);
-                        $fila.find(".btn-detalle-lote")
-                            .removeClass("btn-outline-primary")
-                            .addClass("btn-success");
-                    }
-                } else {
+                if (esMerch) {
+                    itemLocal.ES_MERCH = true;
                     PV.Detalle.cargarFilaDetalleDesdeVenta($fila, itemLocal);
+                } else {
+                    var detalle = dictResultados[codUpper];
+                    if (detalle && detalle.ARTICULO) {
+                        PV.Detalle.llenarFilaDetalleDesdeDetalleVenta($fila, detalle, {
+                            cantidad: itemLocal.QUANTITY || 0,
+                            codigoUmd: itemLocal.UOMENTRY || 0,
+                            descuento: itemLocal.WMS_DSC || 0,
+                            regalo: itemLocal.WMS_GIF || "NO",
+                            mantenerFoco: true,
+                            omitirAsegurarFilaFinal: true,
+                            omitirRecalcularTotales: true,
+                            omitirFechasVencimientoAjax: true,
+                            omitirFraccionadoAjax: true
+                        });
+
+                        if (itemLocal.LOTES && itemLocal.LOTES.length > 0) {
+                            var lotes = itemLocal.LOTES.map(function (l) {
+                                return {
+                                    ITEMCODE: l.ITEMCODE,
+                                    SYSNUMBER: l.SYSNUMBER,
+                                    DISTNUMBER: l.DISTNUMBER,
+                                    QUANTITY: parseInt(l.QUANTITY) || 0
+                                };
+                            });
+                            $fila.data("lotes", lotes);
+                            PV.Detalle.setearFechaDesdeLotes($fila, lotes);
+                            $fila.find(".btn-detalle-lote")
+                                .removeClass("btn-outline-primary")
+                                .addClass("btn-success");
+                        }
+                    } else {
+                        PV.Detalle.cargarFilaDetalleDesdeVenta($fila, itemLocal);
+                    }
                 }
             }
 
@@ -2891,6 +2911,11 @@ function cargarDetalleEditableOptimizado(resp) {
                 PV.Utils.actualizarModalProgreso(total, total, "Completado");
                 PV.Detalle.recalcularTotales();
                 PV.Detalle.agregarFilaDetalleVacia();
+                $("#tblVentaDetalle tbody tr.fila-merch, #tblVentaDetalle tbody tr[data-esmerch='true']").each(function () {
+                    if (PV.Detalle && typeof PV.Detalle.bloquearBotonesFilaMerch === "function") {
+                        PV.Detalle.bloquearBotonesFilaMerch($(this));
+                    }
+                });
                 mostrarErroresFraccionadoFinal();
                 if (PV.Validaciones && typeof PV.Validaciones.revalidarControladosEnDetalle === "function") {
                     PV.Validaciones.revalidarControladosEnDetalle();
@@ -3144,7 +3169,11 @@ function recargarDetalleDesdeSAP(resp, docStatus, estadoEnvio) {
         marcarNotasCreditoGuardadas(resp);
     });
 
-    if (resp.SLPCODE) $("#ddlVentaVendedor").val(resp.SLPCODE);
+    if (resp.SLPCODE && parseInt(resp.SLPCODE, 10) > 0 && $("#ddlVentaVendedor option[value='" + resp.SLPCODE + "']").length > 0) {
+        $("#ddlVentaVendedor").val(resp.SLPCODE);
+    } else {
+        $("#ddlVentaVendedor").val("-1");
+    }
     if (resp.WHSCODE) $("#ddlVentaAlmacen").val(resp.WHSCODE);
 
     if (resp.DOCDATE) {
@@ -3281,6 +3310,9 @@ function recargarDetalleDesdeSAP(resp, docStatus, estadoEnvio) {
     }
 
     function restaurarOReasignarLotes($fila, itemLocal) {
+        if (!itemLocal) return;
+        var esMerch = !!(itemLocal.ES_MERCH || ($fila && ($fila.data("esmerch") || $fila.hasClass("fila-merch"))));
+        if (esMerch) return;
         if (!itemLocal.LOTES || itemLocal.LOTES.length === 0) return;
 
         var itemCode = itemLocal.ITEMCODE || $fila.attr("data-itemcode") || "";
@@ -3476,8 +3508,10 @@ function cargarVentaReadOnly(resp) {
     }, true, resp.DOCENTRY);
 
     // Vendedor
-    if (resp.SLPCODE) {
+    if (resp.SLPCODE && parseInt(resp.SLPCODE, 10) > 0 && $("#ddlVentaVendedor option[value='" + resp.SLPCODE + "']").length > 0) {
         $("#ddlVentaVendedor").val(resp.SLPCODE);
+    } else {
+        $("#ddlVentaVendedor").val("-1");
     }
 
     // Almacén

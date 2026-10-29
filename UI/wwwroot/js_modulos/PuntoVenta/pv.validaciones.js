@@ -91,7 +91,9 @@ PV.Validaciones = (function () {
         if (!$("#txtClienteNombre").val()) errores.push("Debe ingresar el nombre del cliente.");
         if (!$("#txtClienteRuc").val()) errores.push("Debe ingresar el DNI/RUC del cliente.");
         if (!$("#ddlClienteListaPrecio").val()) errores.push("Debe seleccionar una lista de precios.");
-        if ($("#ddlVentaVendedor").val() === "-1") errores.push("Debe seleccionar un vendedor.");
+        const valVendedor = ($("#ddlVentaVendedor").val() || "").toString().trim();
+        const codVendedor = parseInt(valVendedor, 10);
+        if (!valVendedor || isNaN(codVendedor) || codVendedor <= 0) errores.push("Debe seleccionar un vendedor.");
         if (!$("#ddlVentaAlmacen").val()) errores.push("Debe seleccionar un almacén.");
         const fechaAtencion = ($("#txtVentaFechaAtencion").val() || "").trim();
         const fechaEntrega = ($("#txtLogisticaFechaEntrega").val() || "").trim();
@@ -172,8 +174,12 @@ PV.Validaciones = (function () {
         const errores = [];
 
         $("#tblVentaDetalle tbody tr").each(function () {
+            const esMerch = !!($(this).data("esmerch") || $(this).attr("data-esmerch"));
+            if (esMerch) return; // Las líneas de Merchandising se gestionan de forma desacoplada y no usan lotes SAP
+
             const codigo = $(this).find(".txtDetalleCodigo").val();
             if (!codigo) return;
+
 
             const descripcion = $(this).find(".txtDetalleDescripcion").val() || codigo;
             const cantidad = parseFloat(PV.Detalle.leerCantidadFila($(this)));
@@ -429,6 +435,19 @@ PV.Validaciones = (function () {
         return errores;
     }
 
+    function validarArticulosSapEnDetalle(docstatus) {
+        const detalle = recolectarDetalle(docstatus);
+        if (detalle.length === 0) return { valido: false, motivo: "vacio" };
+
+        const esBorrador = docstatus === "E";
+        const tieneSap = detalle.some(function (d) {
+            return !d.ES_MERCH && (esBorrador ? !!d.ITEMCODE : (parseFloat(d.QUANTITY) || 0) > 0);
+        });
+
+        if (!tieneSap) return { valido: false, motivo: "solo_merch" };
+        return { valido: true };
+    }
+
     function recolectarDetalle(docstatus) {
         const items = [];
         const esBorrador = docstatus === "E";
@@ -454,35 +473,43 @@ PV.Validaciones = (function () {
             const precioBase = parseFloat($fila.find(".txtDetallePrecio").data("preciobase")) || 0;
             const precioFinal = parseFloat($fila.find(".txtDetallePrecio").val()) || 0;
 
+            const esMerch = !!($fila.data("esmerch") || $fila.attr("data-esmerch"));
+            const idArticuloMerch = parseInt($fila.data("idarticulomerch") || $fila.attr("data-idarticulomerch")) || null;
+            const observacionMerch = ($fila.data("observacionmerch") || $fila.attr("data-observacionmerch") || "").toString();
+
             const item = {
                 ITEMCODE: codigo,
                 ITEMNAME: $fila.find(".txtDetalleDescripcion").val() || "",
                 CODEBARS: "-",
                 QUANTITY: cantidad,
-                PRICE: umdFactor ? precioFinal / umdFactor : precioFinal,
-                DSCT_PERCENT: cantidad === 0 || !precioBase ? 0 : (descuento / (baseQuantity * precioBase)) * 100,
-                IGV_AFECT: ($fila.data("igvafect") || $fila.attr("data-igvafect") || "IGV").toString().trim(),
-                LINE_TOTAL: cantidad === 0 ? 0 : cantidad * precioFinal - descuento,
+                PRICE: esMerch ? 0 : (umdFactor ? precioFinal / umdFactor : precioFinal),
+                DSCT_PERCENT: (esMerch || cantidad === 0 || !precioBase) ? 0 : (descuento / (baseQuantity * precioBase)) * 100,
+                IGV_AFECT: esMerch ? "EXO" : ($fila.data("igvafect") || $fila.attr("data-igvafect") || "IGV").toString().trim(),
+                LINE_TOTAL: esMerch ? 0 : (cantidad === 0 ? 0 : cantidad * precioFinal - descuento),
                 FORSALE: stock,
                 UOMENTRY: umdEntry,
-                UMD_NOMBRE: ($ddlUmd.find(":selected").text() || "").trim(),
+                UMD_NOMBRE: ($ddlUmd.find(":selected").text() || "UND").trim(),
                 QUANTITY_UOM: umdFactor,
                 TOTAL_UOM: baseQuantity,
-                PRICE_UOM: precioFinal,
+                PRICE_UOM: esMerch ? 0 : precioFinal,
                 UGPENTRY: ugpEntry,
-                PRICE_BEF: precioFinal,
+                PRICE_BEF: esMerch ? 0 : precioFinal,
                 PRICE_LIST: $("#ddlClienteListaPrecio").val() || "",
-                WMS_GIF: regalo,
-                WMS_DSC: descuento,
+                WMS_GIF: esMerch ? "S" : regalo,
+                WMS_DSC: esMerch ? 0 : descuento,
+                ES_MERCH: esMerch,
+                ID_ARTICULO_MERCH: idArticuloMerch,
+                OBSERVACION_MERCH: observacionMerch,
                 LOTES: []
             };
 
             const lotes = $fila.data("lotes");
-            if (lotes && Array.isArray(lotes) && lotes.length > 0) {
+            if (!esMerch && lotes && Array.isArray(lotes) && lotes.length > 0) {
                 item.LOTES = lotes;
             }
 
             items.push(item);
+
         });
 
         return items;
@@ -506,6 +533,21 @@ PV.Validaciones = (function () {
                 type: "warning",
                 title: "Sin productos",
                 text: "Debe agregar al menos un producto al detalle."
+            });
+            return null;
+        }
+
+        const esBorradorReq = docstatus === "E";
+        const tieneArticuloSap = detalle.some(function (d) {
+            return !d.ES_MERCH && (esBorradorReq ? !!d.ITEMCODE : (parseFloat(d.QUANTITY) || 0) > 0);
+        });
+
+        if (!tieneArticuloSap) {
+            Swal.fire({
+                type: "warning",
+                title: "Artículos SAP requeridos",
+                text: "La venta debe incluir al menos un artículo de SAP. No está permitido registrar una orden únicamente con artículos de Merchandising.",
+                confirmButtonText: "Aceptar"
             });
             return null;
         }
@@ -591,6 +633,24 @@ PV.Validaciones = (function () {
             }
         }
 
+        // Formateo de columna MERCH: CODIGO_MERCH1;DESCRIPCION_MERCH1;CANTIDAD1|...
+        const merchParts = [];
+        detalle.forEach(function (d) {
+            if (d && d.ES_MERCH) {
+                const codMerch = (d.ITEMCODE || "").toString().trim();
+                let descMerch = (d.ITEMNAME || "").toString().trim();
+                if (descMerch.indexOf("[MERCH]") === 0) {
+                    descMerch = descMerch.substring(7).trim();
+                }
+                descMerch = descMerch.replace(/;/g, " ").replace(/\|/g, " ");
+                const cantMerch = parseInt(d.QUANTITY, 10) || 1;
+                if (codMerch) {
+                    merchParts.push(`${codMerch};${descMerch};${cantMerch}`);
+                }
+            }
+        });
+        const merchFinal = merchParts.length > 0 ? (merchParts.join("|") + "|") : null;
+
         return {
             OBJTYPE: "17",
             WHSCODE: $("#ddlVentaAlmacen").val() || "",
@@ -605,6 +665,7 @@ PV.Validaciones = (function () {
             ORIN_TOTAL: orinTotal,
             ORIN_RECORD: orinRecordParts.length > 0 ? (orinRecordParts.join(";") + ";") : "",
             NOTA_CREDITO: notasCreditoParts.length > 0 ? (notasCreditoParts.join("|") + "|") : "",
+            MERCH: merchFinal,
             IMP_DELIVERY: flete,
             IMP_DSCTO: descuentoLinea,
             IMP_NET: neto,
@@ -747,6 +808,19 @@ PV.Validaciones = (function () {
     async function guardarVenta() {
         if (!PV.Utils.puedeInteractuar()) return;
         if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
+
+        const checkSap = validarArticulosSapEnDetalle("Z");
+        if (!checkSap.valido) {
+            Swal.fire({
+                type: "warning",
+                title: checkSap.motivo === "vacio" ? "Sin productos" : "Artículos SAP requeridos",
+                text: checkSap.motivo === "vacio"
+                    ? "Debe agregar al menos un producto al detalle."
+                    : "La venta debe incluir al menos un artículo de SAP. No está permitido registrar una orden únicamente con artículos de Merchandising.",
+                confirmButtonText: "Aceptar"
+            });
+            return;
+        }
 
         var bloqueado = await revalidarClienteBloqueado();
         if (bloqueado) {
@@ -1120,6 +1194,19 @@ PV.Validaciones = (function () {
         }
         if (document.activeElement && typeof document.activeElement.blur === "function") document.activeElement.blur();
 
+        const checkSap = validarArticulosSapEnDetalle("E");
+        if (!checkSap.valido) {
+            Swal.fire({
+                type: "warning",
+                title: checkSap.motivo === "vacio" ? "Sin productos" : "Artículos SAP requeridos",
+                text: checkSap.motivo === "vacio"
+                    ? "Debe agregar al menos un producto al detalle."
+                    : "La venta debe incluir al menos un artículo de SAP. No está permitido guardar un borrador únicamente con artículos de Merchandising.",
+                confirmButtonText: "Aceptar"
+            });
+            return;
+        }
+
         var bloqueado = await revalidarClienteBloqueado();
         if (bloqueado) {
             Swal.fire({
@@ -1272,7 +1359,13 @@ PV.Validaciones = (function () {
             $s.val($s.attr("id") === "ddlFinancieroTipoComprobante" ? "01" : $s.find("option:first").val());
         });
 
-        $("#ddlVentaVendedor, #ddlVentaAlmacen, #ddlClienteListaPrecio").val(function () {
+        var usuarioSapCode = parseInt($("#hdfUsuarioSapCode").val(), 10) || 0;
+        if (usuarioSapCode > 0) {
+            $("#ddlVentaVendedor").val(usuarioSapCode);
+        } else {
+            $("#ddlVentaVendedor").val("-1");
+        }
+        $("#ddlVentaAlmacen, #ddlClienteListaPrecio").val(function () {
             return $(this).find("option:first").val();
         });
 

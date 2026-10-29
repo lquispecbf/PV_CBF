@@ -113,9 +113,14 @@ PV.Cliente = (function () {
                 cargarNotasCreditoCliente(c.CODIGO_CLIENTE);
                 validarClienteBloqueado(c.CODIGO_CLIENTE);
 
-                var usuarioSapCode = parseInt($("#hdfUsuarioSapCode").val());
-                if (usuarioSapCode === 0 && c.SLPCODE) {
-                    $("#ddlVentaVendedor").val(c.SLPCODE);
+                var usuarioSapCode = parseInt($("#hdfUsuarioSapCode").val(), 10) || 0;
+                if (usuarioSapCode === 0) {
+                    var slpCliente = parseInt(c.SLPCODE, 10) || 0;
+                    if (slpCliente > 0 && $("#ddlVentaVendedor option[value='" + slpCliente + "']").length > 0) {
+                        $("#ddlVentaVendedor").val(slpCliente);
+                    } else {
+                        $("#ddlVentaVendedor").val("-1");
+                    }
                 }
 
                 if (c.LISTA_PRECIO) {

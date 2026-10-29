@@ -276,20 +276,34 @@ PV.DraftManager = (function () {
             const regalo = ($fila.find(".ddlDetalleRegalo").val() || "NO").toUpperCase();
             const lotes = $fila.data("lotes") || [];
 
+            const esMerch = (PV.Detalle && typeof PV.Detalle.esArticuloMerch === "function")
+                ? PV.Detalle.esArticuloMerch({
+                    ES_MERCH: $fila.data("esmerch") || $fila.attr("data-esmerch"),
+                    ITEMCODE: codigo,
+                    ITEMNAME: desc
+                })
+                : !!($fila.data("esmerch") || $fila.attr("data-esmerch") || $fila.hasClass("fila-merch") || (codigo && codigo.toUpperCase().indexOf("MERCH") === 0));
+
+            const idArticuloMerch = parseInt($fila.data("idarticulomerch") || $fila.attr("data-idarticulomerch")) || 0;
+            const observacionMerch = ($fila.data("observacionmerch") || $fila.attr("data-observacionmerch") || "").toString();
+
             items.push({
                 ITEMCODE: codigo,
                 ITEMNAME: desc,
                 QUANTITY: cantidad,
-                PRICE: precio,
-                LINETOTAL: total,
+                PRICE: esMerch ? 0 : precio,
+                LINETOTAL: esMerch ? 0 : total,
                 ONHAND: stock,
                 FORSALE: porVender,
                 UOMENTRY: umdEntry,
                 UMD_NOMBRE: umdNombre,
                 QUANTITY_UOM: factor,
-                WMS_DSC: descuento,
-                WMS_GIF: regalo,
-                LOTES: lotes
+                WMS_DSC: esMerch ? 0 : descuento,
+                WMS_GIF: esMerch ? "S" : regalo,
+                ES_MERCH: esMerch,
+                ID_ARTICULO_MERCH: idArticuloMerch,
+                OBSERVACION_MERCH: observacionMerch,
+                LOTES: esMerch ? [] : lotes
             });
         });
 
@@ -347,6 +361,23 @@ PV.DraftManager = (function () {
         const notaCreditoFinal = notasCreditoParts.length > 0 ? (notasCreditoParts.join("|") + "|") : "";
         const netoActual = parseFloat($("#txtVentaNeto").val()) || Math.max(totalVenta + flete - descuento - orinTotal, 0);
 
+        const merchParts = [];
+        items.forEach(function (d) {
+            if (d && d.ES_MERCH) {
+                const codMerch = (d.ITEMCODE || "").toString().trim();
+                let descMerch = (d.ITEMNAME || "").toString().trim();
+                if (descMerch.indexOf("[MERCH]") === 0) {
+                    descMerch = descMerch.substring(7).trim();
+                }
+                descMerch = descMerch.replace(/;/g, " ").replace(/\|/g, " ");
+                const cantMerch = parseInt(d.QUANTITY, 10) || 1;
+                if (codMerch) {
+                    merchParts.push(`${codMerch};${descMerch};${cantMerch}`);
+                }
+            }
+        });
+        const merchFinal = merchParts.length > 0 ? (merchParts.join("|") + "|") : null;
+
         const idDeterminista = _generarDraftIdDeterminista(docEntryVal, docEntrySapVal);
         const draftIdFinal = idDeterminista || _obtenerCurrentDraftId();
 
@@ -373,6 +404,7 @@ PV.DraftManager = (function () {
                 orinTotal: orinTotal,
                 orinRecord: orinRecordFinal,
                 notaCredito: notaCreditoFinal,
+                merch: merchFinal,
                 comentarios: ($("#txtLogisticaComentarios").val() || "").trim()
             },
             datosVenta: {
@@ -399,6 +431,7 @@ PV.DraftManager = (function () {
                 ORIN_RECORD: orinRecordFinal,
                 NOTA_CREDITO: notaCreditoFinal,
                 NOTAS_CREDITO: notasCreditoEntries,
+                MERCH: merchFinal,
                 DELIVERY_DATE: $("#txtLogisticaFechaEntrega").val() || "",
                 DELIVERY_TIME: $("#ddlLogisticaHoraEntrega").val() || "",
                 DELIVERY_PLACE: $("#ddlClienteDireccionEnvioId").val() || "",
@@ -656,6 +689,23 @@ PV.DraftManager = (function () {
             $('a[data-pv-tab="main"][href="#tab-2"]').tab("show");
 
             const datos = borrador.datosVenta;
+            if (datos && Array.isArray(datos.DETALLE)) {
+                datos.DETALLE.forEach(function (d) {
+                    if (d) {
+                        const esMerch = (PV.Detalle && typeof PV.Detalle.esArticuloMerch === "function")
+                            ? PV.Detalle.esArticuloMerch(d)
+                            : !!(d.ES_MERCH || (d.ITEMCODE && d.ITEMCODE.toUpperCase().indexOf("MERCH") === 0) || (d.ITEMNAME && d.ITEMNAME.toUpperCase().indexOf("[MERCH]") === 0));
+                        if (esMerch) {
+                            d.ES_MERCH = true;
+                            d.PRICE = 0;
+                            d.LINETOTAL = 0;
+                            d.WMS_DSC = 0;
+                            d.WMS_GIF = "S";
+                            d.LOTES = [];
+                        }
+                    }
+                });
+            }
             cargarVentaEditable(datos, "BORRADOR_LOCAL", "LOCAL");
 
             $("#modalBorradoresLocales").modal("hide");

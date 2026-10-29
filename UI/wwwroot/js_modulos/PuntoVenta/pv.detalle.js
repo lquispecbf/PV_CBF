@@ -46,6 +46,22 @@ PV.Detalle = (function () {
             $tdPorVender.removeClass("td-por-vender-cambiado").css("background-color", "");
             return;
         }
+        var esMerch = !!($fila.data("esmerch") || $fila.attr("data-esmerch") === "true" || $fila.hasClass("fila-merch"));
+        if (esMerch) {
+            if (!$txtPorVender.hasClass("por-vender-cambiado")) {
+                $txtPorVender.removeClass("por-vender-cero").removeAttr("title").css({
+                    "background-color": "",
+                    "color": "",
+                    "font-weight": "",
+                    "border": ""
+                });
+                $tdPorVender.removeClass("td-por-vender-cambiado").css("background-color", "");
+            }
+            var valMerch = parseFloat($txtPorVender.val()) || 0;
+            $txtPorVender.toggleClass("por-vender-cero", valMerch === 0);
+            return;
+        }
+
         var valor = parseFloat($txtPorVender.val()) || 0;
         $txtPorVender.toggleClass("por-vender-cero", valor === 0);
     }
@@ -489,13 +505,17 @@ PV.Detalle = (function () {
 
         $(document).off("click.detalleBuscar").on("click.detalleBuscar", ".btn-detalle-buscar", function (e) {
             e.preventDefault();
+            if ($(this).prop("disabled") || $(this).is(":disabled")) return;
             const $fila = $(this).closest("tr");
+            if ($fila.hasClass("fila-merch") || $fila.data("esmerch") || $fila.attr("data-esmerch") === "true") return;
             PV.Hotkeys.abrirModalBusquedaItems($fila);
         });
 
         $(document).off("click.detalleLote").on("click.detalleLote", ".btn-detalle-lote", function (e) {
             e.preventDefault();
+            if ($(this).prop("disabled") || $(this).is(":disabled")) return;
             const $fila = $(this).closest("tr");
+            if ($fila.hasClass("fila-merch") || $fila.data("esmerch") || $fila.attr("data-esmerch") === "true") return;
             const codigo = $fila.find(".txtDetalleCodigo").val();
 
             if (!codigo) {
@@ -1845,6 +1865,25 @@ PV.Detalle = (function () {
         $fila.removeData("umds");
         $fila.removeData("fraccionado");
         $fila.removeData("montominimo");
+        $fila.removeAttr("data-esmerch");
+        $fila.removeData("esmerch");
+        $fila.removeAttr("data-idarticulomerch");
+        $fila.removeData("idarticulomerch");
+        $fila.removeAttr("data-observacionmerch");
+        $fila.removeData("observacionmerch");
+        $fila.removeClass("fila-merch");
+        $fila.find(".btn-detalle-lote")
+            .prop("disabled", false)
+            .removeAttr("disabled")
+            .removeClass("d-none")
+            .attr("title", "Seleccionar lote")
+            .css({ "pointer-events": "", "opacity": "", "cursor": "" });
+        $fila.find(".btn-detalle-buscar")
+            .prop("disabled", false)
+            .removeAttr("disabled")
+            .removeClass("d-none")
+            .attr("title", "Buscar producto")
+            .css({ "pointer-events": "", "opacity": "", "cursor": "" });
         $fila.find(".btn-detalle-limpiar").addClass("d-none");
         $fila.find(".btn-detalle-imagen").addClass("d-none");
         $fila.find(".btn-detalle-promo").addClass("d-none").prop("disabled", true);
@@ -2183,7 +2222,63 @@ PV.Detalle = (function () {
         }
     }
 
+    function esArticuloMerch(item) {
+        if (!item) return false;
+        if (item.ES_MERCH === true || item.esMerch === true || item.es_merch === true) return true;
+        if (item.ID_ARTICULO_MERCH && item.ID_ARTICULO_MERCH > 0) return true;
+        if (item.idArticuloMerch && item.idArticuloMerch > 0) return true;
+        var code = (item.ITEMCODE || "").toString().trim().toUpperCase();
+        if (code.indexOf("MERCH-") === 0 || code.indexOf("MERCH_") === 0 || code === "MERCH") return true;
+        var name = (item.ITEMNAME || "").toString().trim().toUpperCase();
+        if (name.indexOf("[MERCH]") === 0) return true;
+        return false;
+    }
+
     function cargarFilaDetalleDesdeVenta($fila, item) {
+        var esMerch = esArticuloMerch(item);
+        if (esMerch) {
+            item.ES_MERCH = true;
+            $fila.attr("data-esmerch", "true");
+            $fila.data("esmerch", true);
+            $fila.attr("data-idarticulomerch", item.ID_ARTICULO_MERCH || item.idArticuloMerch || 0);
+            $fila.data("idarticulomerch", item.ID_ARTICULO_MERCH || item.idArticuloMerch || 0);
+            $fila.attr("data-observacionmerch", item.OBSERVACION_MERCH || item.observacionMerch || "");
+            $fila.data("observacionmerch", item.OBSERVACION_MERCH || item.observacionMerch || "");
+            $fila.attr("data-itemcode", item.ITEMCODE || "");
+            $fila.data("itemcode", item.ITEMCODE || "");
+            $fila.attr("data-igvafect", "EXO");
+            $fila.data("igvafect", "EXO");
+            $fila.data("lotes", []);
+            $fila.addClass("fila-merch");
+
+            var descMerch = (item.ITEMNAME || "").trim();
+            if (descMerch.indexOf("[MERCH]") !== 0) {
+                descMerch = "[MERCH] " + descMerch;
+            }
+            $fila.find(".txtDetalleDescripcion").val(descMerch).prop("readonly", true);
+            $fila.find(".txtDetalleCodigo").val(item.ITEMCODE || "").prop("readonly", true);
+            $fila.find(".txtDetalleCantidad").val(item.QUANTITY || 1);
+            $fila.find(".txtDetallePrecio").val("0.00000").data("preciobase", 0);
+            $fila.find(".txtDetalleTotal").val("0.00");
+            $fila.find(".txtDetalleRegalo").val("SÍ");
+            $fila.find(".txtDetalleDescuento").val("0.00");
+
+            var stockPorVenderMerch = Number(item.FORSALE || item.StockDisponible || 0);
+            $fila.find(".txtDetallePorVender").val(stockPorVenderMerch.toFixed(2));
+            $fila.find(".txtDetallePorVender").data("stockbase", stockPorVenderMerch);
+            _resaltarPorVender($fila);
+
+            $fila.find(".ddlDetalleUmd").html(`<option value="0" data-factor="1">${item.UMD_NOMBRE || "UND"}</option>`).prop("disabled", true);
+            $fila.find(".txtDetalleVencimiento").html('<option value="">-- NO APLICA --</option>').prop("disabled", true);
+
+            $fila.find(".btn-detalle-limpiar").removeClass("d-none");
+            $fila.find(".btn-detalle-promo").addClass("d-none");
+            $fila.find(".btn-detalle-imagen").addClass("d-none");
+
+            bloquearBotonesFilaMerch($fila);
+            return;
+        }
+
         $fila.attr("data-itemcode", item.ITEMCODE || "");
         $fila.attr("data-codebars", item.CODEBARS || "");
         $fila.attr("data-igvafect", item.IGV_AFECT || "IGV");
@@ -2210,10 +2305,13 @@ PV.Detalle = (function () {
         $fila.find(".txtDetallePrecio").data("preciobase", precioUom / factor);
         $fila.find(".txtDetalleTotal").val((Number(item.QUANTITY || 0) * precioUom).toFixed(2));
         $fila.find(".txtDetalleDescuento").val(Number(item.WMS_DSC || 0).toFixed(2));
-        $fila.find(".txtDetallePorVender").val(Number(item.FORSALE || 0).toFixed(2));
-        $fila.find(".txtDetallePorVender").data("stockbase", Number(item.FORSALE || 0));
-        _resaltarPorVender($fila);
         $fila.find(".txtDetalleRegalo").val(item.WMS_GIF || "NO");
+
+        var stockPorVender = Number(item.FORSALE || item.StockDisponible || 0);
+        $fila.find(".txtDetallePorVender").val(stockPorVender.toFixed(2));
+        $fila.find(".txtDetallePorVender").data("stockbase", stockPorVender);
+        _resaltarPorVender($fila);
+
 
         if (item.FECHA_VENCIMIENTO) {
             var $sel = $fila.find(".txtDetalleVencimiento");
@@ -2672,7 +2770,9 @@ PV.Detalle = (function () {
         if (!PV.Utils.puedeInteractuar() || _modoLectura || $("#btnActualizarStockDetalle").is(":disabled")) return;
 
         var rowsArr = [];
-        var items = [];
+        var itemsSap = [];
+        var rowsMerch = [];
+
         $("#tblVentaDetalle tbody tr").each(function () {
             var $fila = $(this);
             var codigo = ($fila.find(".txtDetalleCodigo").val() || "").trim();
@@ -2683,15 +2783,21 @@ PV.Detalle = (function () {
                 $fila.data("porVenderPrevio", valPrevio);
 
                 rowsArr.push($fila);
-                var umd = $fila.find(".ddlDetalleUmd").val();
-                items.push({
-                    CodigoArticulo: codigo,
-                    CodigoUmd: umd ? parseInt(umd) : null
-                });
+
+                var esMerch = !!($fila.data("esmerch") || $fila.attr("data-esmerch") === "true" || $fila.hasClass("fila-merch"));
+                if (esMerch) {
+                    rowsMerch.push($fila);
+                } else {
+                    var umd = $fila.find(".ddlDetalleUmd").val();
+                    itemsSap.push({
+                        CodigoArticulo: codigo,
+                        CodigoUmd: umd ? parseInt(umd) : null
+                    });
+                }
             }
         });
 
-        if (items.length === 0) {
+        if (rowsArr.length === 0) {
             Swal.fire({
                 type: "info",
                 title: "Sin productos",
@@ -2700,7 +2806,7 @@ PV.Detalle = (function () {
             return;
         }
 
-        var total = items.length;
+        var total = rowsArr.length;
         var listaPrecio = (parseInt($("#ddlClienteListaPrecio").val()) || 1);
         var almacen = ($("#ddlVentaAlmacen").val() || "").trim();
         var codigoCliente = ($("#txtClienteCodigo").val() || "").trim();
@@ -2716,21 +2822,52 @@ PV.Detalle = (function () {
 
         PV.Utils._procesando = true;
         $("#btnActualizarStockDetalle").prop("disabled", true);
-        PV.Utils.mostrarModalProgreso("Actualizando Por Vender...", "Consultando stock desde SAP...", total);
+        var subMsg = (rowsMerch.length > 0 && itemsSap.length > 0)
+            ? "Consultando stock desde SAP y Almacén Merchandising..."
+            : (rowsMerch.length > 0 ? "Consultando stock desde Almacén Merchandising..." : "Consultando stock desde SAP...");
+        PV.Utils.mostrarModalProgreso("Actualizando Por Vender...", subMsg, total);
 
         var $icon = $("#btnActualizarStockDetalle i");
         $icon.addClass("fa-spin");
 
-        cargarDetalleArticulosVentaBatch(items, listaPrecio, almacen, codigoCliente, function (dictResultados) {
-            if (!dictResultados || Object.keys(dictResultados).length === 0) {
-                $icon.removeClass("fa-spin");
-                PV.Utils.cerrarModalProgreso(100, function () {
-                    PV.Utils._procesando = false;
-                    $("#btnActualizarStockDetalle").prop("disabled", false);
-                    if (typeof callback === "function") callback();
-                });
-                return;
-            }
+        // Promesas en paralelo para actualizar stock de SAP y Merchandising
+        var pSap = new Promise(function (resolve) {
+            if (itemsSap.length === 0) return resolve({});
+            cargarDetalleArticulosVentaBatch(itemsSap, listaPrecio, almacen, codigoCliente, function (dictResultados) {
+                resolve(dictResultados || {});
+            });
+        });
+
+        var pMerch = new Promise(function (resolve) {
+            if (rowsMerch.length === 0) return resolve({});
+            $.ajax({
+                url: "/PuntoVenta/Buscar_ArticulosMerch",
+                type: "POST",
+                contentType: "application/json; charset=utf-8",
+                data: JSON.stringify({ filtro: "" }),
+                success: function (data) {
+                    var mapMerch = {};
+                    if (Array.isArray(data)) {
+                        data.forEach(function (m) {
+                            var cod = (m.Codigo || m.codigo || "").toString().trim().toUpperCase();
+                            var id = m.IdArticulo ?? m.idArticulo;
+                            var stock = parseInt(m.StockDisponible ?? m.stockDisponible ?? 0, 10) || 0;
+                            if (cod) mapMerch[cod] = stock;
+                            if (id !== undefined && id !== null) mapMerch["ID_" + id] = stock;
+                        });
+                    }
+                    resolve(mapMerch);
+                },
+                error: function (xhr) {
+                    console.error("Error al consultar stock de Merchandising:", xhr);
+                    resolve({});
+                }
+            });
+        });
+
+        Promise.all([pSap, pMerch]).then(function (results) {
+            var dictResultados = results[0] || {};
+            var dictMerch = results[1] || {};
 
             var index = 0;
             var batchSize = 10;
@@ -2744,40 +2881,45 @@ PV.Detalle = (function () {
                     var codigo = ($fila.find(".txtDetalleCodigo").val() || "").trim().toUpperCase();
                     if (!codigo) continue;
 
-                    var detalle = dictResultados[codigo] || dictResultados[codigo.toUpperCase()] || dictResultados[codigo.toLowerCase()];
-                    if (detalle && detalle.ARTICULO) {
-                        var forsale = Number(detalle.ARTICULO.STOCK !== undefined ? detalle.ARTICULO.STOCK : (detalle.ARTICULO.FORSALE || 0));
-                        var $txtPorVender = $fila.find(".txtDetallePorVender");
-                        var $tdPorVender = $txtPorVender.closest("td");
+                    var esMerch = !!($fila.data("esmerch") || $fila.attr("data-esmerch") === "true" || $fila.hasClass("fila-merch"));
+                    var $txtPorVender = $fila.find(".txtDetallePorVender");
+                    var $tdPorVender = $txtPorVender.closest("td");
 
-                        var valorAnterior = $fila.data("porVenderPrevio");
-                        if (valorAnterior === undefined || isNaN(valorAnterior)) {
-                            valorAnterior = parseFloat($txtPorVender.val()) || 0;
+                    var valorAnterior = $fila.data("porVenderPrevio");
+                    if (valorAnterior === undefined || isNaN(valorAnterior)) {
+                        valorAnterior = parseFloat($txtPorVender.val()) || 0;
+                    }
+
+                    if (esMerch) {
+                        var idArticulo = $fila.data("idarticulomerch") || $fila.attr("data-idarticulomerch");
+                        var stockMerch = 0;
+
+                        if (idArticulo && dictMerch["ID_" + idArticulo] !== undefined) {
+                            stockMerch = dictMerch["ID_" + idArticulo];
+                        } else if (codigo && dictMerch[codigo] !== undefined) {
+                            stockMerch = dictMerch[codigo];
+                        } else {
+                            stockMerch = 0;
                         }
 
-                        $txtPorVender.data("stockbase", forsale);
-
-                        var factor = parseFloat($fila.find(".ddlDetalleUmd option:selected").data("factor")) || 1;
-                        var porVenderCalc = (forsale / factor).toFixed(2);
-                        var valorNuevo = parseFloat(porVenderCalc) || 0;
-
-                        $txtPorVender.val(porVenderCalc);
-                        $txtPorVender.toggleClass("por-vender-cero", valorNuevo === 0);
+                        $txtPorVender.data("stockbase", stockMerch);
+                        $txtPorVender.val(stockMerch);
+                        $txtPorVender.toggleClass("por-vender-cero", stockMerch === 0);
 
                         // Si el valor cambió respecto al que tenía antes de actualizar
-                        if (Math.abs(valorAnterior - valorNuevo) > 0.0001) {
+                        if (Math.abs(valorAnterior - stockMerch) > 0.0001) {
                             $txtPorVender.addClass("por-vender-cambiado");
                             $tdPorVender.addClass("td-por-vender-cambiado");
                             $txtPorVender.css({
-                                "background-color": valorNuevo === 0 ? "#ed5565" : "#d1ecf1",
-                                "color": valorNuevo === 0 ? "#ffffff" : "#0c5460",
+                                "background-color": stockMerch === 0 ? "#ed5565" : "#d1ecf1",
+                                "color": stockMerch === 0 ? "#ffffff" : "#0c5460",
                                 "font-weight": "bold",
-                                "border": valorNuevo === 0 ? "2px solid #b71c1c" : "1.5px solid #17a2b8"
+                                "border": stockMerch === 0 ? "2px solid #b71c1c" : "1.5px solid #17a2b8"
                             });
                             $tdPorVender.css({
-                                "background-color": valorNuevo === 0 ? "#ed5565" : "#d1ecf1"
+                                "background-color": stockMerch === 0 ? "#ed5565" : "#d1ecf1"
                             });
-                            $txtPorVender.attr("title", "Stock actualizado: cambió de " + valorAnterior.toFixed(2) + " a " + valorNuevo.toFixed(2));
+                            $txtPorVender.attr("title", "Stock Merch actualizado: cambió de " + valorAnterior + " a " + stockMerch);
                             variaron++;
                         } else {
                             $txtPorVender.removeClass("por-vender-cambiado");
@@ -2795,6 +2937,52 @@ PV.Detalle = (function () {
                         }
 
                         actualizados++;
+                    } else {
+                        var detalle = dictResultados[codigo] || dictResultados[codigo.toUpperCase()] || dictResultados[codigo.toLowerCase()];
+                        if (detalle && detalle.ARTICULO) {
+                            var forsale = Number(detalle.ARTICULO.STOCK !== undefined ? detalle.ARTICULO.STOCK : (detalle.ARTICULO.FORSALE || 0));
+
+                            $txtPorVender.data("stockbase", forsale);
+
+                            var factor = parseFloat($fila.find(".ddlDetalleUmd option:selected").data("factor")) || 1;
+                            var porVenderCalc = (forsale / factor).toFixed(2);
+                            var valorNuevo = parseFloat(porVenderCalc) || 0;
+
+                            $txtPorVender.val(porVenderCalc);
+                            $txtPorVender.toggleClass("por-vender-cero", valorNuevo === 0);
+
+                            // Si el valor cambió respecto al que tenía antes de actualizar
+                            if (Math.abs(valorAnterior - valorNuevo) > 0.0001) {
+                                $txtPorVender.addClass("por-vender-cambiado");
+                                $tdPorVender.addClass("td-por-vender-cambiado");
+                                $txtPorVender.css({
+                                    "background-color": valorNuevo === 0 ? "#ed5565" : "#d1ecf1",
+                                    "color": valorNuevo === 0 ? "#ffffff" : "#0c5460",
+                                    "font-weight": "bold",
+                                    "border": valorNuevo === 0 ? "2px solid #b71c1c" : "1.5px solid #17a2b8"
+                                });
+                                $tdPorVender.css({
+                                    "background-color": valorNuevo === 0 ? "#ed5565" : "#d1ecf1"
+                                });
+                                $txtPorVender.attr("title", "Stock actualizado: cambió de " + valorAnterior.toFixed(2) + " a " + valorNuevo.toFixed(2));
+                                variaron++;
+                            } else {
+                                $txtPorVender.removeClass("por-vender-cambiado");
+                                $tdPorVender.removeClass("td-por-vender-cambiado");
+                                $txtPorVender.css({
+                                    "background-color": "",
+                                    "color": "",
+                                    "font-weight": "",
+                                    "border": ""
+                                });
+                                $tdPorVender.css({
+                                    "background-color": ""
+                                });
+                                $txtPorVender.removeAttr("title");
+                            }
+
+                            actualizados++;
+                        }
                     }
                 }
 
@@ -2826,6 +3014,14 @@ PV.Detalle = (function () {
             }
 
             procesarLoteStock();
+        }).catch(function (err) {
+            console.error("Error al actualizar Por Vender:", err);
+            $icon.removeClass("fa-spin");
+            PV.Utils.cerrarModalProgreso(100, function () {
+                PV.Utils._procesando = false;
+                $("#btnActualizarStockDetalle").prop("disabled", false);
+                if (typeof callback === "function") callback();
+            });
         });
     }
 
@@ -2854,18 +3050,27 @@ PV.Detalle = (function () {
             var vencimiento = item.FECHA_VENCIMIENTO || "";
             var umdNombre = (item.UMD_NOMBRE || "").replace(/"/g, "&quot;");
 
-            var optVenc = vencimiento ? `<option value="${vencimiento}" selected>${vencimiento}</option>` : '<option value="">-- Seleccionar --</option>';
+            var esMerch = !!item.ES_MERCH;
+            if (esMerch) {
+                precio = "0.00000";
+                total = "0.00";
+                dscto = "0.00";
+                regalo = "SÍ";
+            }
+
+            var optVenc = esMerch ? '<option value="" selected>-- NO APLICA --</option>' : (vencimiento ? `<option value="${vencimiento}" selected>${vencimiento}</option>` : '<option value="">-- Seleccionar --</option>');
             var optUmd = umdNombre ? `<option value="${ugpentry}" selected>${umdNombre}</option>` : '';
 
             html += `
-            <tr class="fila-detalle" data-itemcode="${itemcode}" data-codebars="${codebars}" data-igvafect="${igv}" data-lotes="[]">
+            <tr class="fila-detalle ${esMerch ? 'fila-merch' : ''}" data-itemcode="${itemcode}" data-codebars="${codebars}" data-igvafect="${igv}" data-esmerch="${esMerch}" data-lotes="[]">
+
                 <td class="text-center">
-                    <button type="button" class="btn btn-outline-primary btn-detalle-lote" tabindex="-1" title="Seleccionar lote" disabled>
+                    <button type="button" class="btn btn-outline-primary btn-detalle-lote" tabindex="-1" title="${esMerch ? 'No aplica asignación de lote para Merchandising' : 'Seleccionar lote'}" disabled ${esMerch ? 'style="pointer-events: none; opacity: 0.5; cursor: not-allowed;"' : ''}>
                         <i class="fa fa-box"></i>
                     </button>
                 </td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-primary btn-detalle-buscar" tabindex="-1" title="Buscar producto" disabled>
+                    <button type="button" class="btn btn-primary btn-detalle-buscar" tabindex="-1" title="${esMerch ? 'No aplica búsqueda de artículo para Merchandising' : 'Buscar producto'}" disabled ${esMerch ? 'style="pointer-events: none; opacity: 0.5; cursor: not-allowed;"' : ''}>
                         <i class="fa fa-search"></i>
                     </button>
                 </td>
@@ -2923,12 +3128,18 @@ PV.Detalle = (function () {
         $("#tblVentaDetalle tbody tr").each(function (idx) {
             var item = items[idx];
             if (item) {
+                var esMerch = !!item.ES_MERCH;
+                if (esMerch) {
+                    $(this).data("esmerch", true);
+                    $(this).attr("data-esmerch", "true");
+                    $(this).addClass("fila-merch");
+                }
                 var factor = Number(item.UMD_FACTOR || 1);
                 if (factor <= 0) factor = 1;
                 var precioUom = Number(item.PRICE_UOM || item.PRICE_BEF || (item.PRICE ? item.PRICE * factor * (item.IGV_AFECT === "IGV" || item.IGV_AFECT === "S" || item.IGV_AFECT === "Y" ? 1.18 : 1) : 0));
                 $(this).data("ugpentry", item.UOMENTRY || 0);
                 $(this).find(".txtDetallePrecio").data("preciobase", precioUom / factor);
-                $(this).find(".txtDetallePorVender").data("stockbase", Number(item.FORSALE || 0));
+                $(this).find(".txtDetallePorVender").data("stockbase", Number(item.FORSALE || item.StockDisponible || 0));
                 _resaltarPorVender($(this));
                 if (item.LOTES && item.LOTES.length > 0) {
                     $(this).data("lotes", item.LOTES);
@@ -3149,6 +3360,9 @@ PV.Detalle = (function () {
     });
 
     function _cargarFechasVencimiento($fila, codigoArticulo) {
+        if (!$fila || !$fila.length) return;
+        var esMerch = !!($fila.data("esmerch") || $fila.attr("data-esmerch") || $fila.hasClass("fila-merch"));
+        if (esMerch) return;
         var almacen = $("#ddlVentaAlmacen").val();
         if (!almacen || !codigoArticulo) return;
 
@@ -3198,6 +3412,9 @@ PV.Detalle = (function () {
     }
 
     function setearFechaDesdeLotes($fila, lotesAsignados) {
+        if (!$fila || !$fila.length) return;
+        var esMerch = !!($fila.data("esmerch") || $fila.attr("data-esmerch") || $fila.hasClass("fila-merch"));
+        if (esMerch) return;
         var lotesData = $fila.data("lotesData") || [];
         if (!lotesAsignados || lotesAsignados.length === 0) {
             $fila.find(".txtDetalleVencimiento").prop("disabled", false).removeClass("vencimiento-proximo");
@@ -3277,6 +3494,10 @@ PV.Detalle = (function () {
             }
             $("#btnDesbloquearFlete").prop("disabled", false);
         }
+
+        $("#tblVentaDetalle tbody tr.fila-merch, #tblVentaDetalle tbody tr[data-esmerch='true']").each(function () {
+            bloquearBotonesFilaMerch($(this));
+        });
     }
 
     function bloquearPorClienteBloqueado(bloqueado) {
@@ -3306,6 +3527,10 @@ PV.Detalle = (function () {
                     } else {
                         $ddl.prop("disabled", true).css({ "background-color": "#e9ecef", "cursor": "not-allowed" });
                     }
+                });
+
+                $("#tblVentaDetalle tbody tr.fila-merch, #tblVentaDetalle tbody tr[data-esmerch='true']").each(function () {
+                    bloquearBotonesFilaMerch($(this));
                 });
             }
         }
@@ -3582,15 +3807,282 @@ PV.Detalle = (function () {
         }
     }
 
+    // ==========================================================
+    // MERCHANDISING PVD (Almacén Nicolás Arriola)
+    // ==========================================================
+    function agregarFilaMerch(itemMerch, cantidad, observacion) {
+        if (!itemMerch) return;
+        var idArticulo = itemMerch.IdArticulo ?? itemMerch.idArticulo ?? 0;
+        var codigo = itemMerch.Codigo ?? itemMerch.codigo ?? "";
+        var nombre = itemMerch.Nombre ?? itemMerch.nombre ?? "";
+        var stockDisponible = parseInt(itemMerch.StockDisponible ?? itemMerch.stockDisponible ?? 0, 10) || 0;
+        var unidadMedida = itemMerch.UnidadMedida ?? itemMerch.unidadMedida ?? "UND";
+
+        cantidad = parseInt(cantidad, 10) || 1;
+        if (cantidad <= 0) cantidad = 1;
+
+        // Verificar si ya existe en la grilla
+        var $filaExistente = null;
+        $("#tblVentaDetalle tbody tr").each(function () {
+            var id = $(this).data("idarticulomerch") || $(this).attr("data-idarticulomerch");
+            if (id && parseInt(id, 10) === parseInt(idArticulo, 10)) {
+                $filaExistente = $(this);
+                return false;
+            }
+        });
+
+        if ($filaExistente) {
+            var cantActual = parseInt($filaExistente.find(".txtDetalleCantidad").val(), 10) || 0;
+            var nuevaCant = cantActual + cantidad;
+            $filaExistente.find(".txtDetalleCantidad").val(nuevaCant);
+            if (typeof toastr !== "undefined") {
+                toastr.info("Se actualizó la cantidad del obsequio Merch: " + nuevaCant);
+            }
+            recalcularTotales();
+            return;
+        }
+
+        var $fila = null;
+        const $filas = $("#tblVentaDetalle tbody tr");
+        if ($filas.length > 0 && filaDetalleEstaVacia($filas.last())) {
+            $fila = $filas.last();
+        } else {
+            $fila = agregarFilaDetalleVacia();
+        }
+
+        $fila.attr("data-esmerch", "true");
+        $fila.data("esmerch", true);
+        $fila.attr("data-idarticulomerch", idArticulo);
+        $fila.data("idarticulomerch", idArticulo);
+        $fila.attr("data-observacionmerch", observacion || "");
+        $fila.data("observacionmerch", observacion || "");
+        $fila.attr("data-itemcode", codigo);
+        $fila.data("itemcode", codigo);
+        $fila.attr("data-igvafect", "EXO");
+        $fila.data("igvafect", "EXO");
+        $fila.data("lotes", []);
+        $fila.addClass("fila-merch");
+
+        $fila.find(".txtDetalleCodigo").val(codigo).prop("readonly", true);
+        $fila.find(".txtDetalleDescripcion").val("[MERCH] " + nombre).prop("readonly", true);
+        $fila.find(".txtDetallePorVender").val(stockDisponible);
+        _resaltarPorVender($fila);
+
+        $fila.find(".txtDetalleCantidad").val(cantidad);
+        $fila.find(".ddlDetalleUmd").html(`<option value="0" data-factor="1">${unidadMedida}</option>`).prop("disabled", true);
+        $fila.find(".txtDetallePrecio").val("0.00000").data("preciobase", 0);
+        $fila.find(".txtDetalleTotal").val("0.00");
+        $fila.find(".txtDetalleVencimiento").html('<option value="">-- NO APLICA --</option>').prop("disabled", true);
+        $fila.find(".txtDetalleRegalo").val("SÍ");
+        $fila.find(".txtDetalleDescuento").val("0.00");
+
+        bloquearBotonesFilaMerch($fila);
+        $fila.find(".btn-detalle-limpiar").removeClass("d-none");
+        $fila.find(".btn-detalle-promo").addClass("d-none");
+
+        asegurarFilaVaciaFinal();
+        recalcularTotales();
+
+        if (typeof toastr !== "undefined") {
+            toastr.success("Artículo " + itemMerch.codigo + " agregado como obsequio.");
+        }
+    }
+
+    function bloquearBotonesFilaMerch($fila) {
+        if (!$fila || !$fila.length) return;
+        $fila.find(".btn-detalle-lote")
+            .prop("disabled", true)
+            .attr("disabled", "disabled")
+            .removeClass("d-none")
+            .attr("title", "No aplica asignación de lote para Merchandising")
+            .css({ "pointer-events": "none", "opacity": "0.5", "cursor": "not-allowed" });
+
+        $fila.find(".btn-detalle-buscar")
+            .prop("disabled", true)
+            .attr("disabled", "disabled")
+            .removeClass("d-none")
+            .attr("title", "No aplica búsqueda de artículo para Merchandising")
+            .css({ "pointer-events": "none", "opacity": "0.5", "cursor": "not-allowed" });
+    }
+
+    function cargarArticulosModalMerch(filtro) {
+        var $tbody = $("#tblModalMerch tbody");
+        $tbody.html('<tr><td colspan="6" class="text-center py-3"><i class="fa fa-spinner fa-spin fa-2x text-navy"></i><br/><span class="text-muted">Buscando artículos autorizados en Almacén Arriola...</span></td></tr>');
+
+        $.ajax({
+            url: "/PuntoVenta/Buscar_ArticulosMerch",
+            type: "POST",
+            contentType: "application/json; charset=utf-8",
+            data: JSON.stringify({ filtro: filtro || "" }),
+            success: function (data) {
+                $tbody.empty();
+                if (!Array.isArray(data) || data.length === 0) {
+                    $tbody.html('<tr><td colspan="6" class="text-center py-3 text-muted">No se encontraron artículos de merchandising disponibles con stock en Almacén Nicolás Arriola.</td></tr>');
+                    return;
+                }
+
+                data.forEach(function (raw) {
+                    var m = {
+                        idArticulo: raw.IdArticulo ?? raw.idArticulo ?? 0,
+                        codigo: raw.Codigo ?? raw.codigo ?? "",
+                        nombre: raw.Nombre ?? raw.nombre ?? "",
+                        descripcion: raw.Descripcion ?? raw.descripcion ?? "",
+                        categoria: raw.Categoria ?? raw.categoria ?? "",
+                        unidadMedida: raw.UnidadMedida ?? raw.unidadMedida ?? "UND",
+                        stockDisponible: parseInt(raw.StockDisponible ?? raw.stockDisponible ?? 0, 10) || 0,
+                        idSede: raw.IdSede ?? raw.idSede ?? 2,
+                        rutaImagen: raw.RutaImagen ?? raw.rutaImagen ?? ""
+                    };
+                    var stock = m.stockDisponible;
+                    var jsonStr = PV.esc(JSON.stringify(m));
+                    var tr = `
+                        <tr>
+                            <td class="font-weight-bold text-navy">${PV.esc(m.codigo)}</td>
+                            <td>
+                                <strong>${PV.esc(m.nombre)}</strong>
+                                ${m.descripcion ? '<br/><small class="text-muted">' + PV.esc(m.descripcion) + '</small>' : ''}
+                            </td>
+                            <td><span class="badge badge-light">${PV.esc(m.categoria || "-")}</span></td>
+                            <td class="text-center"><span class="badge badge-success font-weight-bold">${stock} ${PV.esc(m.unidadMedida)}</span></td>
+                            <td class="text-center">
+                                <input type="text" class="form-control form-control-sm text-right txt-cant-merch" value="0" maxlength="6" autocomplete="off" style="width:65px; margin:0 auto; text-align:right;" />
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-xs btn-primary btn-agregar-merch-item" data-merch="${jsonStr}" style="background-color:#1ab394;border-color:#1ab394;">
+                                    <i class="fa fa-plus mr-1"></i> Agregar
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    $tbody.append(tr);
+                });
+            },
+            error: function () {
+                $tbody.html('<tr><td colspan="6" class="text-center py-3 text-danger"><i class="fa fa-exclamation-triangle mr-1"></i> No se pudo cargar el catálogo de Merchandising.</td></tr>');
+            }
+        });
+    }
+
+    // Eventos de control de cantidad en el modal de Merchandising
+    $(document).off("input.cantMerch", ".txt-cant-merch").on("input.cantMerch", ".txt-cant-merch", function () {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+
+    $(document).off("click.cantMerch focus.cantMerch", ".txt-cant-merch").on("click.cantMerch focus.cantMerch", ".txt-cant-merch", function () {
+        $(this).select();
+    });
+
+    $(document).off("blur.cantMerch", ".txt-cant-merch").on("blur.cantMerch", ".txt-cant-merch", function () {
+        if (this.value === "" || isNaN(parseInt(this.value, 10))) {
+            this.value = "0";
+        }
+    });
+
+    // Eventos del modal y botón Merchandising
+    $(document).off("click.merchAgregar", "#btnVentaAgregarMerch").on("click.merchAgregar", "#btnVentaAgregarMerch", function () {
+        if (_modoLectura) return;
+
+        // Abrir el modal permitiendo consultar los artículos de merchandising disponibles
+        $("#txtFiltroModalMerch").val("");
+        $("#tblModalMerch tbody").html('<tr><td colspan="6" class="text-center py-4 text-muted"><i class="fa fa-search fa-2x mb-2 text-muted"></i><br/><span>Ingrese un filtro o haga clic en <strong>Buscar</strong> para consultar los artículos disponibles en Almacén Arriola.</span></td></tr>');
+        $("#modalSeleccionarMerch").modal("show");
+        $("#modalSeleccionarMerch").one("shown.bs.modal", function () {
+            $("#txtFiltroModalMerch").focus();
+        });
+    });
+
+    $(document).off("click.merchBuscar", "#btnBuscarModalMerch").on("click.merchBuscar", "#btnBuscarModalMerch", function () {
+        var filtro = $("#txtFiltroModalMerch").val();
+        cargarArticulosModalMerch(filtro);
+    });
+
+    $(document).off("keypress.merchFiltro", "#txtFiltroModalMerch").on("keypress.merchFiltro", "#txtFiltroModalMerch", function (e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            cargarArticulosModalMerch($(this).val());
+        }
+    });
+
+    $(document).off("click.merchClear", "#btnClearFiltroModalMerch").on("click.merchClear", "#btnClearFiltroModalMerch", function () {
+        $("#txtFiltroModalMerch").val("").focus();
+        $("#tblModalMerch tbody").html('<tr><td colspan="6" class="text-center py-4 text-muted"><i class="fa fa-search fa-2x mb-2 text-muted"></i><br/><span>Ingrese un filtro o haga clic en <strong>Buscar</strong> para consultar los artículos disponibles en Almacén Arriola.</span></td></tr>');
+    });
+
+    $(document).off("click.merchItem", ".btn-agregar-merch-item").on("click.merchItem", ".btn-agregar-merch-item", function () {
+        // Validar estrictamente la selección de cliente al intentar agregar el artículo
+        if (PV.Validaciones && typeof PV.Validaciones.validarClienteSeleccionadoParaDetalle === "function") {
+            if (!PV.Validaciones.validarClienteSeleccionadoParaDetalle()) {
+                return;
+            }
+        } else {
+            var cliente = ($("#txtClienteCodigo").val() || "").trim();
+            if (!cliente) {
+                Swal.fire({
+                    type: "warning",
+                    title: "Seleccione un Cliente",
+                    text: "Debe seleccionar un cliente antes de agregar artículos de merchandising al detalle de la venta.",
+                    confirmButtonText: "Entendido",
+                    confirmButtonColor: "#1ab394"
+                });
+                return;
+            }
+        }
+
+        var $btn = $(this);
+        var $tr = $btn.closest("tr");
+        var rawData = $btn.attr("data-merch");
+        var $txtCant = $tr.find(".txt-cant-merch");
+        var cant = parseInt($txtCant.val(), 10);
+
+        // Validar que la cantidad sea numérica entera y estrictamente mayor a 0
+        if (isNaN(cant) || cant <= 0) {
+            Swal.fire({
+                type: "warning",
+                title: "Cantidad no válida",
+                text: "La cantidad a agregar debe ser mayor a 0.",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#1ab394"
+            }).then(function () {
+                $txtCant.focus().select();
+            });
+            return;
+        }
+
+        try {
+            var itemMerch = JSON.parse(rawData);
+            var stockDisp = parseInt(itemMerch.StockDisponible ?? itemMerch.stockDisponible ?? 0, 10) || 0;
+            if (stockDisp > 0 && cant > stockDisp) {
+                Swal.fire({
+                    type: "warning",
+                    title: "Stock Insuficiente",
+                    text: "La cantidad ingresada (" + cant + ") supera el stock disponible (" + stockDisp + ") en Almacén Nicolás Arriola.",
+                    confirmButtonText: "Entendido",
+                    confirmButtonColor: "#1ab394"
+                }).then(function () {
+                    $txtCant.focus().select();
+                });
+                return;
+            }
+
+            agregarFilaMerch(itemMerch, cant, "Obsequio por venta en PVD");
+            $("#modalSeleccionarMerch").modal("hide");
+        } catch (e) {
+            console.error("Error al agregar merch:", e);
+        }
+    });
+
     return {
         inicializar: inicializar,
         agregarFilaDetalleVacia: agregarFilaDetalleVacia,
+        agregarFilaMerch: agregarFilaMerch,
         recalcularLinea: recalcularLinea,
         recalcularTotales: recalcularTotales,
         llenarFilaDetalle: llenarFilaDetalle,
         llenarFilaDetalleDesdeDetalleVenta: llenarFilaDetalleDesdeDetalleVenta,
         cargarFilaDetalleDesdeVenta: cargarFilaDetalleDesdeVenta,
         setFormReadOnly: setFormReadOnly,
+        esArticuloMerch: esArticuloMerch,
+        bloquearBotonesFilaMerch: bloquearBotonesFilaMerch,
         isReadOnly: isReadOnly,
         enfocarFilaVaciaFinal: enfocarFilaVaciaFinal,
         bloquearPorClienteBloqueado: bloquearPorClienteBloqueado,
@@ -3620,3 +4112,4 @@ PV.Detalle = (function () {
     };
 
 })();
+

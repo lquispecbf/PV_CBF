@@ -503,7 +503,16 @@
                         </div>
 
                         <div class="card mb-2 p-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1 px-1">
+                                <span class="font-weight-bold" style="font-size:12px; color:#495057;"><i class="fa fa-list mr-1"></i> Detalle de Artículos</span>
+                                <div>
+                                    <button type="button" id="btnVentaAgregarMerch" class="btn btn-xs btn-success" style="font-weight:600; padding: 2px 10px;" title="Agregar obsequio de Merchandising autorizado (Almacén Nicolás Arriola)">
+                                        <i class="fa fa-gift mr-1"></i> + Agregar Merch
+                                    </button>
+                                </div>
+                            </div>
                             <div id="detalleScrollContainer">
+
                                 <table id="tblVentaDetalle" class="table table-sm table-bordered table-hover mb-0">
                                     <thead>
                                         <tr>
@@ -516,7 +525,7 @@
                                             <th class="ordenar-col" data-col="3">Código</th>
                                             <th class="ordenar-col" data-col="4">
                                                 Por Vender
-                                                <button type="button" id="btnActualizarStockDetalle" class="btn btn-xs btn-outline-light ml-1" title="Actualizar Por Vender desde SAP" tabindex="-1" style="padding: 0px 4px; font-size: 10px; line-height: 1.4; vertical-align: middle; border-color: rgba(255,255,255,0.7); border-radius: 3px;">
+                                                <button type="button" id="btnActualizarStockDetalle" class="btn btn-xs btn-outline-light ml-1" title="Actualizar Por Vender (SAP y Merchandising)" tabindex="-1" style="padding: 0px 4px; font-size: 10px; line-height: 1.4; vertical-align: middle; border-color: rgba(255,255,255,0.7); border-radius: 3px;">
                                                     <i class="fa fa-sync-alt"></i>
                                                 </button>
                                             </th>
@@ -2453,10 +2462,67 @@
     </div>
 </div>
 
+<!-- Modal Selección de Merchandising PVD (Almacén Nicolás Arriola) -->
+<div class="modal fade" id="modalSeleccionarMerch" tabindex="-1" role="dialog" data-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color:#1ab394;color:white">
+                <h5 class="modal-title font-weight-bold"><i class="fa fa-gift mr-2"></i> Obsequios de Merchandising Autorizados</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info py-2 px-3 mb-3" style="font-size:12px; line-height:1.4;">
+                    <i class="fa fa-info-circle mr-1"></i>
+                    <strong>Almacén Nicolás Arriola (WHSCODE: ALM-01):</strong> Los artículos seleccionados se asignarán como regalo (S/ 0.00). Al guardar la venta se descontará su stock físico de Merchandising sin enviarse a SAP.
+                </div>
+
+                <div class="row mb-3 align-items-end g-2">
+                    <div class="col-12 col-md-8">
+                        <label class="font-weight-bold" style="font-size:12px;">Buscar Artículo Merch</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="txtFiltroModalMerch" class="form-control" placeholder="Buscar por código, descripción o categoría..." autocomplete="off" />
+                            <div class="input-group-append">
+                                <button type="button" id="btnClearFiltroModalMerch" class="btn btn-outline-secondary" title="Limpiar"><i class="fa fa-times"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4 text-md-right mt-2 mt-md-0">
+                        <button type="button" id="btnBuscarModalMerch" class="btn btn-sm btn-primary" style="background-color:#1ab394;border-color:#1ab394;">
+                            <i class="fa fa-search mr-1"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                    <table class="table table-sm table-bordered table-hover mb-0" id="tblModalMerch">
+                        <thead style="background-color:#f3f3f4; font-size:12px;">
+                            <tr>
+                                <th style="width: 100px;">Código</th>
+                                <th>Artículo</th>
+                                <th style="width: 110px;">Categoría</th>
+                                <th style="width: 90px;" class="text-center">Stock Disp.</th>
+                                <th style="width: 80px;" class="text-center">Cant.</th>
+                                <th style="width: 90px;" class="text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody style="font-size: 12px;">
+                            <!-- Dinámico -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal"><i class="fa fa-times mr-1"></i> Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <link href="~/css/plugins/select2/select2.min.css" rel="stylesheet" />
 <link href="~/css/plugins/awesome-bootstrap-checkbox/awesome-bootstrap-checkbox.css" rel="stylesheet" />
 <script src="~/js/plugins/select2/select2.full.min.js"></script>
 <script src="~/js/plugins/html2canvas.min.js"></script>
+
 <script>
     window.PUEDE_ANULAR_ENVIADO_WMS = @((ViewBag.PuedeAnularEnviadoWms ?? false).ToString().ToLower());
     window.PUEDE_MODIFICAR_CONDICION_PAGO = @((ViewBag.PuedeModificarCondicionPago ?? false).ToString().ToLower());
@@ -2474,14 +2540,14 @@
         }
     })();
 </script>
-<script         src="~/js_modulos/PuntoVenta/pv.core.js?v=1.0.52"></script>
-<script    src="~/js_modulos/PuntoVenta/pv.catalogos.js?v=1.0.52"></script>
-<script      src="~/js_modulos/PuntoVenta/pv.cliente.js?v=1.0.52"></script>
-<script      src="~/js_modulos/PuntoVenta/pv.detalle.js?v=1.0.52"></script>
-<script      src="~/js_modulos/PuntoVenta/pv.hotkeys.js?v=1.0.52"></script>
-<script src="~/js_modulos/PuntoVenta/pv.validaciones.js?v=1.0.52"></script>
-<script       src="~/js_modulos/PuntoVenta/pv.drafts.js?v=1.0.52"></script>
-<script        src="~/js_modulos/PuntoVenta/js_venta.js?v=1.0.54"></script>
+<script         src="~/js_modulos/PuntoVenta/pv.core.js?v=1.0.53"></script>
+<script    src="~/js_modulos/PuntoVenta/pv.catalogos.js?v=1.0.53"></script>
+<script      src="~/js_modulos/PuntoVenta/pv.cliente.js?v=1.0.53"></script>
+<script      src="~/js_modulos/PuntoVenta/pv.detalle.js?v=1.0.53"></script>
+<script      src="~/js_modulos/PuntoVenta/pv.hotkeys.js?v=1.0.53"></script>
+<script src="~/js_modulos/PuntoVenta/pv.validaciones.js?v=1.0.53"></script>
+<script       src="~/js_modulos/PuntoVenta/pv.drafts.js?v=1.0.53"></script>
+<script        src="~/js_modulos/PuntoVenta/js_venta.js?v=1.0.55"></script>
 <script>
     $(document).on("click", "#side-menu a[href]", function (e) {
         var href = $(this).attr("href");

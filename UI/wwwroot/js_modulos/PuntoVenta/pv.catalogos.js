@@ -70,16 +70,32 @@ PV.Catalogos = (function () {
             dataType: "json",
             success: function (data) {
                 let list = Array.isArray(data) ? data : (data && data.data ? data.data : []);
-                let html = '';
+                let htmlVenta = '';
+                let htmlBusqueda = '<option value="-1">-- Todos los Vendedores --</option>';
 
                 list.forEach(function (item) {
                     const codigo = item.CODIGO !== undefined ? item.CODIGO : (item.codigo !== undefined ? item.codigo : "");
                     const nombre = item.NOMBRE !== undefined ? item.NOMBRE : (item.nombre !== undefined ? item.nombre : "");
-                    html += `<option value="${codigo}">${nombre}</option>`;
+                    htmlVenta += `<option value="${codigo}">${nombre}</option>`;
+                    if (parseInt(codigo, 10) > 0) {
+                        htmlBusqueda += `<option value="${codigo}">${nombre}</option>`;
+                    }
                 });
 
-                $("#ddlVentaVendedor").html(html);
-                $("#ddlBusquedaVendedor").html(html);
+                const $ddlV = $("#ddlVentaVendedor");
+                const pendingVendedor = $ddlV.attr("data-pending-val") || $ddlV.val();
+                $ddlV.html(htmlVenta);
+                $("#ddlBusquedaVendedor").html(htmlBusqueda);
+
+                var usuarioSapCode = parseInt($("#hdfUsuarioSapCode").val(), 10) || 0;
+                if (pendingVendedor && pendingVendedor !== "-1" && $ddlV.find("option[value='" + pendingVendedor + "']").length > 0) {
+                    $ddlV.val(pendingVendedor);
+                } else if (usuarioSapCode > 0 && $ddlV.find("option[value='" + usuarioSapCode + "']").length > 0) {
+                    $ddlV.val(usuarioSapCode);
+                } else {
+                    $ddlV.val("-1");
+                }
+
                 if (typeof callback === "function") callback(list);
             },
             error: function (xhr) {
