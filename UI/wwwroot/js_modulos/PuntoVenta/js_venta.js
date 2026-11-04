@@ -2669,6 +2669,10 @@ function cargarVentaEditable(resp, docStatus, estadoEnvio) {
         PV.Core.limpiarFormularioParaCarga();
     }
 
+    if (PV.Detalle && typeof PV.Detalle.setFormReadOnly === "function") {
+        PV.Detalle.setFormReadOnly(false);
+    }
+
     if (PV.Core && typeof PV.Core.conmutarTab === "function") {
         PV.Core.conmutarTab("#tab-2");
     } else {
@@ -3134,6 +3138,10 @@ function recargarDetalleDesdeSAP(resp, docStatus, estadoEnvio) {
         PV.Core.limpiarFormularioParaCarga();
     }
 
+    if (PV.Detalle && typeof PV.Detalle.setFormReadOnly === "function") {
+        PV.Detalle.setFormReadOnly(false);
+    }
+
     if (PV.Core && typeof PV.Core.conmutarTab === "function") {
         PV.Core.conmutarTab("#tab-2");
     } else {
@@ -3166,8 +3174,8 @@ function recargarDetalleDesdeSAP(resp, docStatus, estadoEnvio) {
         resp.INVOICE_ADDRESS
     );
     PV.Cliente.cargarNotasCreditoCliente(resp.CARDCODE, function () {
-        marcarNotasCreditoGuardadas(resp);
-    });
+        marcarNotasCreditoGuardadas(resp, false);
+    }, true, resp.DOCENTRY);
 
     if (resp.SLPCODE && parseInt(resp.SLPCODE, 10) > 0 && $("#ddlVentaVendedor option[value='" + resp.SLPCODE + "']").length > 0) {
         $("#ddlVentaVendedor").val(resp.SLPCODE);

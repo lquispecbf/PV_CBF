@@ -596,6 +596,10 @@ PV.Core = (function () {
     function limpiarFormularioParaCarga() {
         PV.confirmarGuardado();
 
+        if (PV.Detalle && typeof PV.Detalle.setFormReadOnly === "function") {
+            PV.Detalle.setFormReadOnly(false);
+        }
+
         // 1. Cabeceras e identificadores
         $("#hdfDocEntry").val("");
         $("#hdfDocEntrySap").val("");
