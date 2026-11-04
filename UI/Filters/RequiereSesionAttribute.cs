@@ -45,6 +45,47 @@ namespace UI.Filters
                 return;
             }
 
+            // Control de inactividad de 60 minutos exclusivamente para usuarios SIN "Mantener Sesión"
+            var mantenerSesion = context.HttpContext.Session.GetString("SESSION_MANTENER_SESION") == "1";
+            if (!mantenerSesion)
+            {
+                var ultimaActividadStr = context.HttpContext.Session.GetString("SESSION_ULTIMA_ACTIVIDAD");
+                if (!string.IsNullOrWhiteSpace(ultimaActividadStr) &&
+                    DateTime.TryParse(ultimaActividadStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var ultimaActividad))
+                {
+                    if (DateTime.UtcNow - ultimaActividad > TimeSpan.FromMinutes(60))
+                    {
+                        context.HttpContext.Session.Clear();
+
+                        if (EsPeticionAjax(context))
+                        {
+                            context.HttpContext.Response.Headers["X-Session-Expired"] = "true";
+                            context.Result = new JsonResult(new
+                            {
+                                success = false,
+                                error = "SESSION_EXPIRED",
+                                mensaje = "Su sesión ha finalizado por 60 minutos de inactividad. Por favor inicie sesión nuevamente."
+                            })
+                            {
+                                StatusCode = StatusCodes.Status401Unauthorized
+                            };
+                        }
+                        else
+                        {
+                            context.Result = new RedirectToActionResult(
+                                "Login",
+                                "Seguridad",
+                                null
+                            );
+                        }
+                        return;
+                    }
+                }
+
+                // Actualizar timestamp de última actividad para usuarios normales
+                context.HttpContext.Session.SetString("SESSION_ULTIMA_ACTIVIDAD", DateTime.UtcNow.ToString("o"));
+            }
+
             // Validación de cambio obligatorio de clave
             var debeCambiar = context.HttpContext.Session.GetString("SESSION_DEBE_CAMBIAR");
             if (debeCambiar == "1" && !EsRutaCambioClave(controller, action))

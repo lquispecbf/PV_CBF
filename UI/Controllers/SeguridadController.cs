@@ -151,6 +151,7 @@ namespace UI.Controllers
                 HttpContext.Session.SetString("SESSION_DIAS_CLAVE", usuario.DIAS_RESTANTES_CLAVE?.ToString() ?? "999");
                 HttpContext.Session.SetString("SESSION_PROXIMO_VENCER", usuario.PROXIMO_VENCER ?? "0");
                 HttpContext.Session.SetString("SESSION_MANTENER_SESION", mantenerSesion ? "1" : "0");
+                HttpContext.Session.SetString("SESSION_ULTIMA_ACTIVIDAD", DateTime.UtcNow.ToString("o"));
                 HttpContext.Session.SetString("SESSION_PUEDE_ANULAR_WMS", puedeAnularWms ? "1" : "0");
                 HttpContext.Session.SetString("SESSION_ROL_CONDICION_PAGO", rolCondicionPago);
                 HttpContext.Session.SetInt32("SESSION_CODIGO_VENDEDOR_SAP", usuario.CODIGO_VENDEDOR_SAP ?? 0);

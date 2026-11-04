@@ -485,11 +485,14 @@ $(document).ready(function () {
         }
 
         const ahora = Date.now();
-        if (ahora - ultimoKeepAliveMs < 60000) {
-            // Evitar pings múltiples en menos de 1 minuto
+        window.__ultimoKeepAliveMs = window.__ultimoKeepAliveMs || 0;
+        if (ahora - window.__ultimoKeepAliveMs < 60000 || window.__keepAliveEnProgreso) {
+            // Evitar pings múltiples o concurrentes en menos de 1 minuto
             return;
         }
+        window.__ultimoKeepAliveMs = ahora;
         ultimoKeepAliveMs = ahora;
+        window.__keepAliveEnProgreso = true;
 
         $.ajax({
             type: "GET",
@@ -502,6 +505,9 @@ $(document).ready(function () {
                 if (xhr.status === 401) {
                     notificarSesionExpiradaYRedirigir();
                 }
+            },
+            complete: function () {
+                window.__keepAliveEnProgreso = false;
             }
         });
     }

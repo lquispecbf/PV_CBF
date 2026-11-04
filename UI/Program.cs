@@ -12,7 +12,9 @@ builder.Services.AddDistributedMemoryCache();
 
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromMinutes(60);
+    // Tiempo de vida global de sesión en memoria: 14 horas para cubrir la jornada laboral completa
+    // (El límite de inactividad de 60 minutos para usuarios normales se controla en RequiereSesionAttribute)
+    options.IdleTimeout = TimeSpan.FromHours(14);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
     options.Cookie.Name = ".CBF.PuntoVenta.Session";
