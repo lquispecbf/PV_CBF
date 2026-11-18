@@ -187,7 +187,7 @@ $(document).ready(function () {
         descargarListaPreciosCliente();
     });
 
-    $("#ddlModalExportarListaPrecios").on("change", function () {
+    $("#ddlModalExportarListaPrecios, input[name='rbFiltroStock']").on("change", function () {
         $("#alertDescargaExitosaListaPrecios").hide();
     });
 
@@ -997,13 +997,14 @@ function descargarListaPreciosCliente() {
 
     var priceList = $("#ddlModalExportarListaPrecios").val() || "1";
     var nombreLista = $("#ddlModalExportarListaPrecios option:selected").text().trim();
+    var incluirStockCero = ($("input[name='rbFiltroStock']:checked").val() === "1") ? "1" : "0";
 
     // Activar loading en botón modal y en vista
     $btnModal.prop("disabled", true).html('<i class="fa fa-spinner fa-spin"></i> Generando...');
     $btnPrincipal.prop("disabled", true);
     $("body").addClass("loading");
 
-    var queryParams = "priceList=" + encodeURIComponent(priceList);
+    var queryParams = "priceList=" + encodeURIComponent(priceList) + "&incluirStockCero=" + encodeURIComponent(incluirStockCero);
     if (nombreLista) {
         queryParams += "&nombreLista=" + encodeURIComponent(nombreLista);
     }

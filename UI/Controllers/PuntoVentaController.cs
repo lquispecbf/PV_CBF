@@ -876,9 +876,10 @@ namespace UI.Controllers
         public async Task<IActionResult> ExportarListaPreciosCliente(
             [FromQuery] int priceList = 1,
             [FromQuery] string? nombreLista = null,
-            [FromQuery] string? itemCode = null)
+            [FromQuery] string? itemCode = null,
+            [FromQuery] int incluirStockCero = 0)
         {
-            var queryParams = new List<string> { $"priceList={priceList}" };
+            var queryParams = new List<string> { $"priceList={priceList}", $"incluirStockCero={incluirStockCero}" };
             if (!string.IsNullOrWhiteSpace(nombreLista))
             {
                 queryParams.Add($"nombreLista={Uri.EscapeDataString(nombreLista.Trim())}");
