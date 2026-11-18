@@ -569,6 +569,14 @@ namespace UI.Controllers
                 });
             }
 
+            if (string.IsNullOrWhiteSpace(request?.SEND_PHONE))
+            {
+                return BadRequest(new
+                {
+                    error = "Debe ingresar el teléfono en la pestaña Logística."
+                });
+            }
+
             return await ProxyPostAsync("api/PuntoVenta/Guardar_Venta", request);
         }
 

@@ -140,11 +140,15 @@ PV.Validaciones = (function () {
         const lugarEntregaText = ($("#ddlLogisticaLugarEntrega option:selected").text() || "").trim().toUpperCase();
         const formaPagoText = ($("#ddlFinancieroFormaPago option:selected").text() || "").trim().toUpperCase();
 
+        const telLogistica = ($("#txtLogisticaTelefono").val() || "").trim();
+        if (!telLogistica) {
+            errores.push("Debe ingresar el teléfono en la pestaña Logística.");
+        }
+
         if (lugarEntregaText === "AGENCIA") {
             if (!$("#txtLogisticaAgencia").val()) errores.push("Debe ingresar la agencia.");
             if (!$("#txtLogisticaRuc").val()) errores.push("Debe ingresar el DNI/RUC.");
             if (!$("#txtLogisticaContactoNombre").val()) errores.push("Debe ingresar el nombre de contacto.");
-            if (!$("#txtLogisticaTelefono").val()) errores.push("Debe ingresar el teléfono.");
             if (!$("#txtLogisticaLugarEnvio").val()) errores.push("Debe ingresar el lugar de envío.");
 
             if (formaPagoText.indexOf("CONTRA ENTREGA") !== -1 || formaPagoText.indexOf("CONTRAENTREGA") !== -1) {
