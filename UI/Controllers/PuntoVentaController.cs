@@ -569,7 +569,8 @@ namespace UI.Controllers
                 });
             }
 
-            if (string.IsNullOrWhiteSpace(request?.SEND_PHONE))
+            bool esLugarCentro = string.Equals(request?.DELIVERY_POINT?.Trim(), "CENTRO", StringComparison.OrdinalIgnoreCase);
+            if (!esLugarCentro && string.IsNullOrWhiteSpace(request?.SEND_PHONE))
             {
                 return BadRequest(new
                 {

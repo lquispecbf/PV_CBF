@@ -138,10 +138,12 @@ PV.Validaciones = (function () {
         }
 
         const lugarEntregaText = ($("#ddlLogisticaLugarEntrega option:selected").text() || "").trim().toUpperCase();
+        const lugarEntregaVal = ($("#ddlLogisticaLugarEntrega").val() || "").trim().toUpperCase();
         const formaPagoText = ($("#ddlFinancieroFormaPago option:selected").text() || "").trim().toUpperCase();
 
+        const esLugarEntregaCentro = (lugarEntregaVal === "CENTRO" || lugarEntregaText === "CENTRO");
         const telLogistica = ($("#txtLogisticaTelefono").val() || "").trim();
-        if (!telLogistica) {
+        if (!esLugarEntregaCentro && !telLogistica) {
             errores.push("Debe ingresar el teléfono en la pestaña Logística.");
         }
 
